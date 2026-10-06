@@ -16,23 +16,80 @@ function timestampAhora() {
   return firebase.firestore.Timestamp.now();
 }
 
+function obtenerHorasSLA(prioridad) {
+  const sla = {
+    urgente: 2,
+    alta: 6,
+    media: 24,
+    baja: 72
+  };
+
+  return sla[prioridad] || 24;
+}
+
+function generarTicket() {
+  const ahora = new Date();
+
+  const anio = ahora.getFullYear();
+  const timestamp = Date.now().toString().slice(-6);
+
+  return `AF-${anio}-${timestamp}`;
+}
+
+function calcularFechaVencimiento(prioridad) {
+  const horas = obtenerHorasSLA(prioridad);
+
+  const fecha = new Date();
+
+  fecha.setHours(fecha.getHours() + horas);
+
+  return firebase.firestore.Timestamp.fromDate(fecha);
+}
+
 async function crearReporte(data) {
+
+  const ticket = generarTicket();
+
+  const sla_horas = obtenerHorasSLA(data.prioridad);
+
+  const vence_en = calcularFechaVencimiento(data.prioridad);
+
   const ref = await db.collection("reportes").add({
+
     ...data,
+
+    ticket: ticket,
+
+    sla_horas: sla_horas,
+
+    vence_en: vence_en,
+
     estado: "pendiente",
+
     tecnico_id: null,
+
     tecnico_nombre: null,
+
     evidencia_final_url: null,
-    creado_en: firebase.firestore.FieldValue.serverTimestamp(),
-    actualizado_en: firebase.firestore.FieldValue.serverTimestamp(),
-    historial: [{
-      estado: "pendiente",
-      fecha: new Date().toISOString(),
-      nota: "Reporte creado",
-      usuario: data.creado_por_nombre
-    }],
+
+    creado_en:
+      firebase.firestore.FieldValue.serverTimestamp(),
+
+    actualizado_en:
+      firebase.firestore.FieldValue.serverTimestamp(),
+
+    historial: [
+      {
+        estado: "pendiente",
+        fecha: new Date().toISOString(),
+        nota: "Reporte creado",
+        usuario: data.creado_por_nombre
+      }
+    ],
+
     comentarios: []
   });
+
   return ref.id;
 }
 
