@@ -1,0 +1,26 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mis reportes</title><link rel="stylesheet" href="/css/style.css"></head><body><header><strong>AulaFix ULEAM</strong><nav>
+<a href="/mis-reportes.html">Mis reportes</a><a href="/nuevo-reporte.html">Nuevo reporte</a>
+<span data-user-name></span><a href="#" onclick="cerrarSesion()">Salir</a></nav></header>
+<div class="container"><div class="card"><div class="actions" style="justify-content:space-between"><div><h1>Mis reportes</h1><p class="small">Seguimiento de incidencias que has registrado.</p></div><a class="btn" href="/nuevo-reporte.html">+ Nuevo</a></div><div id="lista">Cargando...</div></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/cloudinary-config.js"></script>
+<script src="/js/upload.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/db.js"></script>
+
+<script>
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+async function iniciarPagina(){
+ const data=await listarMisReportes(usuarioActual.uid);
+ if(!data.length){lista.innerHTML='<div class="notice">Todavía no tienes reportes.</div>';return}
+ lista.innerHTML=data.map(r=>`<div class="card"><div class="actions" style="justify-content:space-between">
+ <div><h3>${esc(r.titulo)}</h3><span class="badge status">${esc(r.estado)}</span> <span class="badge priority-${esc(r.prioridad)}">${esc(r.prioridad)}</span>
+ <p class="small">${esc(r.categoria)} · ${esc(r.ubicacion?.bloque)} / ${esc(r.ubicacion?.aula)}</p></div>
+ <a class="btn" href="/reporte-detalle.html?id=${r.id}">Ver detalle</a></div></div>`).join("");
+}
+protegerPagina(["usuario","administrador"]);
+</script></body></html>

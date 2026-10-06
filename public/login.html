@@ -1,0 +1,31 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AulaFix - Login</title><link rel="stylesheet" href="/css/style.css"></head><body>
+<div class="auth">
+  <div class="card">
+    <h1>AulaFix ULEAM</h1>
+    <p class="small">Gestión de incidencias y mantenimiento universitario</p>
+    <div id="msg"></div>
+    <form id="form">
+      <label>Correo</label><input id="email" type="email" required>
+      <label>Contraseña</label><input id="password" type="password" minlength="6" required>
+      <div class="actions" style="margin-top:16px"><button>Ingresar</button><a class="btn secondary" href="/registro.html">Crear cuenta</a></div>
+    </form>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/cloudinary-config.js"></script>
+<script src="/js/upload.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/db.js"></script>
+
+<script>
+auth.onAuthStateChanged(async u=>{if(u){const p=await obtenerPerfil(u.uid);if(p)redirigirPorRol(p)}});
+document.getElementById("form").addEventListener("submit", async e=>{
+ e.preventDefault(); const msg=document.getElementById("msg"); msg.innerHTML="";
+ try{const p=await iniciarSesion(email.value,password.value); redirigirPorRol(p)}
+ catch(err){msg.innerHTML=`<div class="notice error">${err.message}</div>`}
+});
+</script></body></html>

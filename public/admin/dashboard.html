@@ -1,0 +1,25 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Dashboard</title><link rel="stylesheet" href="/css/style.css"></head><body><header><strong>AulaFix · Administración</strong><nav>
+<a href="/admin/dashboard.html">Dashboard</a><a href="/admin/reportes.html">Reportes</a><a href="/admin/usuarios.html">Usuarios</a>
+<span data-user-name></span><a href="#" onclick="cerrarSesion()">Salir</a></nav></header>
+<div class="container"><h1>Dashboard</h1><div id="metricas" class="grid"></div><div class="card"><h2>Reportes recientes</h2><div id="recientes"></div></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/cloudinary-config.js"></script>
+<script src="/js/upload.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/db.js"></script>
+
+<script>
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+async function iniciarPagina(){
+ const data=await listarTodosReportes();
+ const c={total:data.length,pendiente:0,en_proceso:0,solucionado:0,cerrado:0};
+ data.forEach(r=>{if(c[r.estado]!==undefined)c[r.estado]++});
+ metricas.innerHTML=Object.entries(c).map(([k,v])=>`<div class="card"><div class="small">${k.replace("_"," ")}</div><div class="metric">${v}</div></div>`).join("");
+ recientes.innerHTML=data.slice(0,8).map(r=>`<p><a href="/admin/reportes.html?id=${r.id}">${esc(r.titulo)}</a> · <span class="badge status">${esc(r.estado)}</span></p>`).join("")||"Sin reportes";
+}
+protegerPagina(["administrador"]);
+</script></body></html>

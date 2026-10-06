@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    function role() {
+      return signedIn() ? userDoc().data.rol : null;
+    }
+
+    function isAdmin() {
+      return role() == "administrador";
+    }
+
+    function isTecnico() {
+      return role() == "tecnico";
+    }
+
+    match /usuarios/{uid} {
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.rol == "usuario";
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow update: if signedIn() && (
+        (request.auth.uid == uid
+          && request.resource.data.rol == resource.data.rol
+          && request.resource.data.activo == resource.data.activo)
+        || isAdmin()
+      );
+      allow delete: if false;
+    }
+
+    match /reportes/{id} {
+      allow create: if signedIn()
+        && request.resource.data.creado_por == request.auth.uid
+        && request.resource.data.estado == "pendiente";
+
+      allow read: if signedIn() && (
+        resource.data.creado_por == request.auth.uid
+        || resource.data.tecnico_id == request.auth.uid
+        || isAdmin()
+      );
+
+      allow update: if signedIn() && (
+        isAdmin()
+        || (isTecnico() && resource.data.tecnico_id == request.auth.uid)
+        || (
+          resource.data.creado_por == request.auth.uid
+          && request.resource.data.estado == resource.data.estado
+          && request.resource.data.tecnico_id == resource.data.tecnico_id
+          && request.resource.data.prioridad == resource.data.prioridad
+        )
+      );
+
+      allow delete: if false;
+    }
+  }
+}

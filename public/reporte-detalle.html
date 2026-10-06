@@ -1,0 +1,41 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Detalle del reporte</title><link rel="stylesheet" href="/css/style.css"></head><body><header><strong>AulaFix ULEAM</strong><nav>
+<a href="/mis-reportes.html">Mis reportes</a><a href="/nuevo-reporte.html">Nuevo reporte</a>
+<span data-user-name></span><a href="#" onclick="cerrarSesion()">Salir</a></nav></header>
+<div class="container"><div id="contenido">Cargando...</div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/cloudinary-config.js"></script>
+<script src="/js/upload.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/db.js"></script>
+
+<script>
+const id=new URLSearchParams(location.search).get("id");
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function fecha(v){return v?new Date(v).toLocaleString():""}
+async function iniciarPagina(){
+ const r=await obtenerReporte(id);
+ if(!r){contenido.innerHTML='<div class="notice error">Reporte no encontrado.</div>';return}
+ let hist=(r.historial||[]).map(h=>`<div class="item"><b>${esc(h.estado)}</b><div class="small">${esc(h.usuario)} · ${fecha(h.fecha)}</div><div>${esc(h.nota)}</div></div>`).join("");
+ let com=(r.comentarios||[]).map(c=>`<div class="card"><b>${esc(c.usuario_nombre)}</b> <span class="small">(${esc(c.rol)}) · ${fecha(c.fecha)}</span><div>${esc(c.texto)}</div></div>`).join("");
+ contenido.innerHTML=`<div class="card"><h1>${esc(r.titulo)}</h1>
+ <p><span class="badge status">${esc(r.estado)}</span> <span class="badge priority-${esc(r.prioridad)}">${esc(r.prioridad)}</span></p>
+ <p>${esc(r.descripcion)}</p>
+ <p><b>Categoría:</b> ${esc(r.categoria)}</p>
+ <p><b>Ubicación:</b> ${esc(r.ubicacion?.facultad)} · ${esc(r.ubicacion?.bloque)} · piso ${esc(r.ubicacion?.piso)} · ${esc(r.ubicacion?.aula)}</p>
+ <p><b>Técnico:</b> ${esc(r.tecnico_nombre||"Sin asignar")}</p>
+ ${r.imagen_inicial_url?`<h3>Evidencia inicial</h3><img class="preview" src="${r.imagen_inicial_url}">`:""}
+ ${r.evidencia_final_url?`<h3>Evidencia final</h3><img class="preview" src="${r.evidencia_final_url}">`:""}
+ </div>
+ <div class="grid"><div class="card"><h2>Historial</h2><div class="timeline">${hist||"Sin historial"}</div></div>
+ <div><div class="card"><h2>Comentarios</h2>${com||'<p class="small">Sin comentarios.</p>'}</div>
+ <div class="card"><form id="fcom"><label>Nuevo comentario</label><textarea id="txt" required minlength="2"></textarea><button>Agregar</button></form></div></div></div>`;
+ document.getElementById("fcom").addEventListener("submit",async e=>{
+  e.preventDefault(); await agregarComentario(id,r,txt.value,{uid:usuarioActual.uid,nombre:perfilActual.nombre,rol:perfilActual.rol}); iniciarPagina();
+ });
+}
+protegerPagina(["usuario","administrador"]);
+</script></body></html>

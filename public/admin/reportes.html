@@ -1,0 +1,39 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gestionar reportes</title><link rel="stylesheet" href="/css/style.css"></head><body><header><strong>AulaFix · Administración</strong><nav>
+<a href="/admin/dashboard.html">Dashboard</a><a href="/admin/reportes.html">Reportes</a><a href="/admin/usuarios.html">Usuarios</a>
+<span data-user-name></span><a href="#" onclick="cerrarSesion()">Salir</a></nav></header>
+<div class="container"><div class="card"><h1>Gestión de reportes</h1>
+<div class="grid"><div><label>Filtrar estado</label><select id="fEstado"><option value="">Todos</option><option>pendiente</option><option>revisado</option><option>asignado</option><option>en_proceso</option><option>solucionado</option><option>cerrado</option><option>rechazado</option></select></div>
+<div><label>Buscar</label><input id="buscar" placeholder="Título, categoría, bloque..."></div></div></div><div id="lista"></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/cloudinary-config.js"></script>
+<script src="/js/upload.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/db.js"></script>
+
+<script>
+let todos=[],tecnicos=[];
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+async function iniciarPagina(){todos=await listarTodosReportes();tecnicos=await listarTecnicos();render()}
+function render(){
+ const q=buscar.value.toLowerCase();const es=fEstado.value;
+ const data=todos.filter(r=>(!es||r.estado===es)&&(!q||JSON.stringify(r).toLowerCase().includes(q)));
+ lista.innerHTML=data.map(r=>`<div class="card"><h3>${esc(r.titulo)}</h3>
+ <p><span class="badge status">${esc(r.estado)}</span> <span class="badge priority-${esc(r.prioridad)}">${esc(r.prioridad)}</span></p>
+ <p>${esc(r.descripcion)}</p><p class="small">${esc(r.creado_por_nombre)} · ${esc(r.categoria)} · ${esc(r.ubicacion?.facultad)} / ${esc(r.ubicacion?.bloque)} / ${esc(r.ubicacion?.aula)}</p>
+ <p><b>Técnico:</b> ${esc(r.tecnico_nombre||"Sin asignar")}</p>
+ <div class="actions">
+ ${r.estado==="pendiente"?`<button onclick="estado('${r.id}','revisado')">Marcar revisado</button>`:""}
+ ${r.estado==="revisado"?`<select id="tec-${r.id}"><option value="">Elegir técnico</option>${tecnicos.map(t=>`<option value="${t.id}">${esc(t.nombre)}</option>`).join("")}</select><button onclick="asignar('${r.id}')">Asignar</button>`:""}
+ ${r.estado==="solucionado"?`<button onclick="estado('${r.id}','cerrado')">Cerrar</button><button class="secondary" onclick="estado('${r.id}','en_proceso')">Reabrir</button>`:""}
+ ${["pendiente","revisado","asignado"].includes(r.estado)?`<button class="danger" onclick="estado('${r.id}','rechazado')">Rechazar</button>`:""}
+ </div></div>`).join("")||'<div class="notice">No hay resultados.</div>';
+}
+async function estado(id,nuevo){const r=todos.find(x=>x.id===id);const nota=prompt("Nota del cambio:","")||"";try{await cambiarEstadoReporte(id,r,nuevo,nota,perfilActual.nombre);await iniciarPagina()}catch(e){alert(e.message)}}
+async function asignar(id){const r=todos.find(x=>x.id===id);const uid=document.getElementById("tec-"+id).value;if(!uid)return alert("Selecciona un técnico");const t=tecnicos.find(x=>x.id===uid);await asignarTecnico(id,r,t);await iniciarPagina()}
+fEstado.onchange=render;buscar.oninput=render;
+protegerPagina(["administrador"]);
+</script></body></html>

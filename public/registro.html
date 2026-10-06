@@ -1,0 +1,27 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AulaFix - Registro</title><link rel="stylesheet" href="/css/style.css"></head><body>
+<div class="auth"><div class="card"><h1>Crear cuenta</h1><div id="msg"></div>
+<form id="form">
+<label>Nombre completo</label><input id="nombre" required minlength="3">
+<label>Correo</label><input id="email" type="email" required>
+<label>Contraseña</label><input id="password" type="password" required minlength="6">
+<label>Repetir contraseña</label><input id="password2" type="password" required minlength="6">
+<div class="actions" style="margin-top:16px"><button>Registrarme</button><a class="btn secondary" href="/login.html">Volver</a></div>
+</form></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="/js/firebase-config.js"></script>
+<script src="/js/cloudinary-config.js"></script>
+<script src="/js/upload.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/db.js"></script>
+
+<script>
+form.addEventListener("submit",async e=>{
+ e.preventDefault(); msg.innerHTML="";
+ if(password.value!==password2.value){msg.innerHTML='<div class="notice error">Las contraseñas no coinciden.</div>';return}
+ try{await registrarUsuario({nombre:nombre.value,email:email.value,password:password.value});location.href="/mis-reportes.html"}
+ catch(err){msg.innerHTML=`<div class="notice error">${err.message}</div>`}
+});
+</script></body></html>
