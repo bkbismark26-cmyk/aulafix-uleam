@@ -1,24 +1,173 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gestionar reportes</title><link rel="stylesheet" href="/css/style.css"></head><body><header><strong>AulaFix · Administración</strong><nav>
-<a href="/admin/dashboard.html">Dashboard</a><a href="/admin/reportes.html">Reportes</a><a href="/admin/usuarios.html">Usuarios</a>
-<span data-user-name></span><a href="#" onclick="cerrarSesion()">Salir</a></nav></header>
-<div class="container"><div class="card"><h1>Gestión de reportes</h1>
-<div class="grid"><div><label>Filtrar estado</label><select id="fEstado"><option value="">Todos</option><option>pendiente</option><option>revisado</option><option>asignado</option><option>en_proceso</option><option>solucionado</option><option>cerrado</option><option>rechazado</option></select></div>
-<div><label>Buscar</label><input id="buscar" placeholder="Título, categoría, bloque..."></div></div></div><div id="lista"></div></div>
+<!doctype html>
+<html lang="es">
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<head>
+  <meta charset="utf-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
+  <title>Gestionar reportes</title>
+
+  <link
+    rel="stylesheet"
+    href="/css/style.css"
+  >
+</head>
+
+<body>
+
+<header>
+
+  <strong>
+    AulaFix · Administración
+  </strong>
+
+  <nav>
+
+    <a href="/admin/dashboard.html">
+      Dashboard
+    </a>
+
+    <a href="/admin/reportes.html">
+      Reportes
+    </a>
+
+    <a href="/admin/usuarios.html">
+      Usuarios
+    </a>
+
+    <span data-user-name></span>
+
+    <a
+      href="#"
+      onclick="cerrarSesion()"
+    >
+      Salir
+    </a>
+
+  </nav>
+
+</header>
+
+
+<div class="container">
+
+  <div class="card">
+
+    <h1>
+      Gestión de reportes
+    </h1>
+
+    <div class="grid">
+
+      <div>
+
+        <label for="fEstado">
+          Filtrar estado
+        </label>
+
+        <select id="fEstado">
+
+          <option value="">
+            Todos
+          </option>
+
+          <option value="pendiente">
+            pendiente
+          </option>
+
+          <option value="revisado">
+            revisado
+          </option>
+
+          <option value="asignado">
+            asignado
+          </option>
+
+          <option value="en_proceso">
+            en_proceso
+          </option>
+
+          <option value="solucionado">
+            solucionado
+          </option>
+
+          <option value="cerrado">
+            cerrado
+          </option>
+
+          <option value="rechazado">
+            rechazado
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div>
+
+        <label for="buscar">
+          Buscar
+        </label>
+
+        <input
+          id="buscar"
+          placeholder="Título, categoría, bloque..."
+        >
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div id="lista">
+    Cargando reportes...
+  </div>
+
+</div>
+
+
+<!-- FIREBASE -->
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
+></script>
+
+
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
 <script src="/js/upload.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/db.js"></script>
+<script src="/js/notifications-ui.js"></script>
+
 
 <script>
+
 let todos = [];
 let tecnicos = [];
 
+
+/* ==================================
+   ESCAPAR TEXTO
+================================== */
+
 function esc(s) {
+
   return String(s ?? "").replace(
     /[&<>"']/g,
     m => ({
@@ -31,41 +180,79 @@ function esc(s) {
   );
 }
 
+
+/* ==================================
+   ESTADO SLA
+================================== */
+
 function obtenerEstadoSLA(r) {
-  if (!r.vence_en?.toDate) {
+
+  if (
+    !r.vence_en?.toDate
+  ) {
+
     return {
       texto: "SIN SLA",
       clase: "badge"
     };
   }
 
+
   if (
     r.estado === "cerrado" ||
     r.estado === "solucionado"
   ) {
+
     return {
       texto: "FINALIZADO",
       clase: "badge status"
     };
   }
 
-  const vence = r.vence_en.toDate();
-  const ahora = new Date();
-  const diferencia = vence - ahora;
 
-  if (diferencia <= 0) {
+  if (
+    r.estado === "rechazado"
+  ) {
+
+    return {
+      texto: "RECHAZADO",
+      clase: "badge"
+    };
+  }
+
+
+  const vence =
+    r.vence_en.toDate();
+
+  const ahora =
+    new Date();
+
+  const diferencia =
+    vence - ahora;
+
+
+  if (
+    diferencia <= 0
+  ) {
+
     return {
       texto: "VENCIDO",
       clase: "badge priority-urgente"
     };
   }
 
-  if (diferencia <= 60 * 60 * 1000) {
+
+  if (
+    diferencia <=
+    60 * 60 * 1000
+  ) {
+
     return {
       texto: "PRÓXIMO A VENCER",
       clase: "badge priority-media"
     };
   }
+
 
   return {
     texto: "A TIEMPO",
@@ -73,13 +260,27 @@ function obtenerEstadoSLA(r) {
   };
 }
 
+
+/* ==================================
+   INICIAR PÁGINA
+================================== */
+
 async function iniciarPagina() {
+
   try {
-    todos = await listarTodosReportes();
-    tecnicos = await listarTecnicos();
+
+    await inicializarNotificacionesUI();
+
+    todos =
+      await listarTodosReportes();
+
+    tecnicos =
+      await listarTecnicos();
 
     render();
+
   } catch (error) {
+
     console.error(error);
 
     lista.innerHTML = `
@@ -90,273 +291,473 @@ async function iniciarPagina() {
   }
 }
 
+
+/* ==================================
+   RENDER
+================================== */
+
 function render() {
-  const q = buscar.value.trim().toLowerCase();
-  const estadoSeleccionado = fEstado.value;
 
-  const data = todos.filter(r => {
-    const coincideEstado =
-      !estadoSeleccionado ||
-      r.estado === estadoSeleccionado;
+  const q =
+    buscar.value
+      .trim()
+      .toLowerCase();
 
-    const textoReporte = `
-      ${r.ticket || ""}
-      ${r.titulo || ""}
-      ${r.descripcion || ""}
-      ${r.categoria || ""}
-      ${r.prioridad || ""}
-      ${r.estado || ""}
-      ${r.creado_por_nombre || ""}
-      ${r.tecnico_nombre || ""}
-      ${r.ubicacion?.facultad || ""}
-      ${r.ubicacion?.bloque || ""}
-      ${r.ubicacion?.piso || ""}
-      ${r.ubicacion?.aula || ""}
-    `.toLowerCase();
+  const estadoSeleccionado =
+    fEstado.value;
 
-    const coincideBusqueda =
-      !q || textoReporte.includes(q);
 
-    return coincideEstado && coincideBusqueda;
-  });
+  const data =
+    todos.filter(
+      r => {
 
-  if (!data.length) {
+        const coincideEstado =
+          !estadoSeleccionado ||
+          r.estado ===
+          estadoSeleccionado;
+
+
+        const textoReporte = `
+          ${r.ticket || ""}
+          ${r.titulo || ""}
+          ${r.descripcion || ""}
+          ${r.categoria || ""}
+          ${r.prioridad || ""}
+          ${r.estado || ""}
+          ${r.creado_por_nombre || ""}
+          ${r.tecnico_nombre || ""}
+          ${r.ubicacion?.facultad || ""}
+          ${r.ubicacion?.bloque || ""}
+          ${r.ubicacion?.piso || ""}
+          ${r.ubicacion?.aula || ""}
+        `.toLowerCase();
+
+
+        const coincideBusqueda =
+          !q ||
+          textoReporte.includes(q);
+
+
+        return (
+          coincideEstado &&
+          coincideBusqueda
+        );
+      }
+    );
+
+
+  if (
+    !data.length
+  ) {
+
     lista.innerHTML = `
       <div class="notice">
         No hay resultados.
       </div>
     `;
+
     return;
   }
 
-  lista.innerHTML = data
-    .map(r => {
-      const sla = obtenerEstadoSLA(r);
 
-      const fechaVence =
-        r.vence_en?.toDate
-          ? r.vence_en.toDate().toLocaleString()
-          : "Sin fecha";
+  lista.innerHTML =
+    data
+      .map(
+        r => {
 
-      return `
-        <div class="card">
+          const sla =
+            obtenerEstadoSLA(r);
 
-          <div
-            class="actions"
-            style="
-              justify-content: space-between;
-              align-items: flex-start;
-            "
-          >
 
-            <div>
+          const fechaVence =
+            r.vence_en?.toDate
 
-              <h3>${esc(r.titulo)}</h3>
+              ? r.vence_en
+                  .toDate()
+                  .toLocaleString()
 
-              <p>
-                <b>Ticket:</b>
-                ${esc(r.ticket || "Sin ticket")}
-              </p>
+              : "Sin fecha";
 
-              <p>
-                <span class="badge status">
-                  ${esc(r.estado)}
-                </span>
 
-                <span
-                  class="badge priority-${esc(r.prioridad)}"
-                >
-                  ${esc(r.prioridad)}
-                </span>
+          return `
 
-                <span class="${sla.clase}">
-                  ${sla.texto}
-                </span>
-              </p>
+            <div class="card">
 
-            </div>
+              <div
+                class="actions"
+                style="
+                  justify-content:space-between;
+                  align-items:flex-start;
+                "
+              >
 
-          </div>
+                <div>
 
-          <p>
-            ${esc(r.descripcion)}
-          </p>
+                  <h3>
+                    ${esc(r.titulo)}
+                  </h3>
 
-          <p class="small">
-            <b>Reportado por:</b>
-            ${esc(r.creado_por_nombre)}
-            ·
-            ${esc(r.categoria)}
-          </p>
 
-          <p class="small">
-            <b>Ubicación:</b>
-            ${esc(r.ubicacion?.facultad)}
-            /
-            ${esc(r.ubicacion?.bloque)}
-            /
-            piso ${esc(r.ubicacion?.piso)}
-            /
-            ${esc(r.ubicacion?.aula)}
-          </p>
+                  <p>
 
-          <div class="grid">
+                    <b>
+                      Ticket:
+                    </b>
 
-            <div>
-              <b>SLA:</b>
-              ${r.sla_horas || "-"} horas
-            </div>
+                    ${esc(
+                      r.ticket ||
+                      "Sin ticket"
+                    )}
 
-            <div>
-              <b>Vence:</b>
-              ${fechaVence}
-            </div>
+                  </p>
 
-            <div>
-              <b>Técnico:</b>
-              ${esc(
-                r.tecnico_nombre ||
-                "Sin asignar"
-              )}
-            </div>
 
-          </div>
+                  <p>
 
-          ${
-            r.evidencia_final_url
-              ? `
-                <div style="margin-top:16px">
-                  <b>Evidencia final:</b>
-                  <br>
-                  <img
-                    class="preview"
-                    src="${r.evidencia_final_url}"
-                    alt="Evidencia final del reporte"
-                  >
+                    <span
+                      class="badge status"
+                    >
+                      ${esc(
+                        r.estado
+                      )}
+                    </span>
+
+
+                    <span
+                      class="
+                      badge
+                      priority-${esc(
+                        r.prioridad
+                      )}
+                      "
+                    >
+                      ${esc(
+                        r.prioridad
+                      )}
+                    </span>
+
+
+                    <span
+                      class="${sla.clase}"
+                    >
+                      ${sla.texto}
+                    </span>
+
+                  </p>
+
                 </div>
-              `
-              : ""
-          }
 
-          <div
-            class="actions"
-            style="margin-top:16px"
-          >
+              </div>
 
-            ${
-              r.estado === "pendiente"
-                ? `
-                  <button
-                    onclick="estado(
-                      '${r.id}',
-                      'revisado'
-                    )"
-                  >
-                    Marcar revisado
-                  </button>
-                `
-                : ""
-            }
 
-            ${
-              r.estado === "revisado"
-                ? `
-                  <select
-                    id="tec-${r.id}"
-                    style="max-width:300px"
-                  >
+              <p>
+                ${esc(
+                  r.descripcion
+                )}
+              </p>
 
-                    <option value="">
-                      Elegir técnico
-                    </option>
 
-                    ${
-                      tecnicos
-                        .map(
-                          t => `
-                            <option
-                              value="${t.id}"
-                            >
-                              ${esc(t.nombre)}
-                            </option>
-                          `
-                        )
-                        .join("")
-                    }
+              <p class="small">
 
-                  </select>
+                <b>
+                  Reportado por:
+                </b>
 
-                  <button
-                    onclick="asignar('${r.id}')"
-                  >
-                    Asignar
-                  </button>
-                `
-                : ""
-            }
+                ${esc(
+                  r.creado_por_nombre
+                )}
 
-            ${
-              r.estado === "solucionado"
-                ? `
-                  <button
-                    onclick="estado(
-                      '${r.id}',
-                      'cerrado'
-                    )"
-                  >
-                    Cerrar
-                  </button>
+                ·
 
-                  <button
-                    class="secondary"
-                    onclick="estado(
-                      '${r.id}',
-                      'en_proceso'
-                    )"
-                  >
-                    Reabrir
-                  </button>
-                `
-                : ""
-            }
+                ${esc(
+                  r.categoria
+                )}
 
-            ${
-              [
-                "pendiente",
-                "revisado",
-                "asignado"
-              ].includes(r.estado)
-                ? `
-                  <button
-                    class="danger"
-                    onclick="estado(
-                      '${r.id}',
-                      'rechazado'
-                    )"
-                  >
-                    Rechazar
-                  </button>
-                `
-                : ""
-            }
+              </p>
 
-          </div>
 
-        </div>
-      `;
-    })
-    .join("");
+              <p class="small">
+
+                <b>
+                  Ubicación:
+                </b>
+
+                ${esc(
+                  r.ubicacion?.facultad
+                )}
+
+                /
+
+                ${esc(
+                  r.ubicacion?.bloque
+                )}
+
+                /
+
+                piso
+
+                ${esc(
+                  r.ubicacion?.piso
+                )}
+
+                /
+
+                ${esc(
+                  r.ubicacion?.aula
+                )}
+
+              </p>
+
+
+              <div class="grid">
+
+                <div>
+
+                  <b>
+                    SLA:
+                  </b>
+
+                  ${
+                    r.sla_horas ||
+                    "-"
+                  }
+                  horas
+
+                </div>
+
+
+                <div>
+
+                  <b>
+                    Vence:
+                  </b>
+
+                  ${fechaVence}
+
+                </div>
+
+
+                <div>
+
+                  <b>
+                    Técnico:
+                  </b>
+
+                  ${esc(
+                    r.tecnico_nombre ||
+                    "Sin asignar"
+                  )}
+
+                </div>
+
+              </div>
+
+
+              ${
+                r.imagen_inicial_url
+                  ? `
+                    <div
+                      style="margin-top:16px"
+                    >
+
+                      <b>
+                        Evidencia inicial:
+                      </b>
+
+                      <br>
+
+                      <img
+                        class="preview"
+                        src="${r.imagen_inicial_url}"
+                        alt="Evidencia inicial del reporte"
+                      >
+
+                    </div>
+                  `
+                  : ""
+              }
+
+
+              ${
+                r.evidencia_final_url
+                  ? `
+                    <div
+                      style="margin-top:16px"
+                    >
+
+                      <b>
+                        Evidencia final:
+                      </b>
+
+                      <br>
+
+                      <img
+                        class="preview"
+                        src="${r.evidencia_final_url}"
+                        alt="Evidencia final del reporte"
+                      >
+
+                    </div>
+                  `
+                  : ""
+              }
+
+
+              <div
+                class="actions"
+                style="margin-top:16px"
+              >
+
+                ${
+                  r.estado === "pendiente"
+                    ? `
+                      <button
+                        onclick="estado(
+                          '${r.id}',
+                          'revisado'
+                        )"
+                      >
+                        Marcar revisado
+                      </button>
+                    `
+                    : ""
+                }
+
+
+                ${
+                  r.estado === "revisado"
+                    ? `
+
+                      <select
+                        id="tec-${r.id}"
+                        style="max-width:300px"
+                      >
+
+                        <option value="">
+                          Elegir técnico
+                        </option>
+
+                        ${
+                          tecnicos
+                            .map(
+                              t => `
+                                <option
+                                  value="${t.id}"
+                                >
+                                  ${esc(
+                                    t.nombre
+                                  )}
+                                </option>
+                              `
+                            )
+                            .join("")
+                        }
+
+                      </select>
+
+
+                      <button
+                        onclick="asignar(
+                          '${r.id}'
+                        )"
+                      >
+                        Asignar
+                      </button>
+
+                    `
+                    : ""
+                }
+
+
+                ${
+                  r.estado === "solucionado"
+                    ? `
+
+                      <button
+                        onclick="estado(
+                          '${r.id}',
+                          'cerrado'
+                        )"
+                      >
+                        Cerrar
+                      </button>
+
+
+                      <button
+                        class="secondary"
+                        onclick="estado(
+                          '${r.id}',
+                          'en_proceso'
+                        )"
+                      >
+                        Reabrir
+                      </button>
+
+                    `
+                    : ""
+                }
+
+
+                ${
+                  [
+                    "pendiente",
+                    "revisado",
+                    "asignado"
+                  ].includes(
+                    r.estado
+                  )
+                    ? `
+
+                      <button
+                        class="danger"
+                        onclick="estado(
+                          '${r.id}',
+                          'rechazado'
+                        )"
+                      >
+                        Rechazar
+                      </button>
+
+                    `
+                    : ""
+                }
+
+              </div>
+
+            </div>
+
+          `;
+        }
+      )
+      .join("");
 }
 
-async function estado(id, nuevoEstado) {
-  const reporte = todos.find(
-    r => r.id === id
-  );
+
+/* ==================================
+   CAMBIAR ESTADO
+================================== */
+
+async function estado(
+  id,
+  nuevoEstado
+) {
+
+  const reporte =
+    todos.find(
+      r =>
+        r.id === id
+    );
+
 
   if (!reporte) {
-    alert("No se encontró el reporte.");
+
+    alert(
+      "No se encontró el reporte."
+    );
+
     return;
   }
+
 
   const nota =
     prompt(
@@ -364,7 +765,9 @@ async function estado(id, nuevoEstado) {
       ""
     ) || "";
 
+
   try {
+
     await cambiarEstadoReporte(
       id,
       reporte,
@@ -373,59 +776,93 @@ async function estado(id, nuevoEstado) {
       perfilActual.nombre
     );
 
+
     await iniciarPagina();
 
   } catch (error) {
+
     console.error(error);
-    alert(error.message);
+
+    alert(
+      error.message
+    );
   }
 }
 
+
+/* ==================================
+   ASIGNAR TÉCNICO
+================================== */
+
 async function asignar(id) {
-  const reporte = todos.find(
-    r => r.id === id
-  );
+
+  const reporte =
+    todos.find(
+      r =>
+        r.id === id
+    );
+
 
   if (!reporte) {
-    alert("No se encontró el reporte.");
+
+    alert(
+      "No se encontró el reporte."
+    );
+
     return;
   }
+
 
   const selector =
     document.getElementById(
       "tec-" + id
     );
 
-  const uid = selector.value;
+
+  const uid =
+    selector.value;
+
 
   if (!uid) {
+
     alert(
       "Selecciona un técnico."
     );
+
     return;
   }
 
-  const tecnico = tecnicos.find(
-    t => t.id === uid
-  );
+
+  const tecnico =
+    tecnicos.find(
+      t =>
+        t.id === uid
+    );
+
 
   if (!tecnico) {
+
     alert(
       "No se encontró el técnico."
     );
+
     return;
   }
 
+
   try {
+
     await asignarTecnico(
       id,
       reporte,
       tecnico
     );
 
+
     await iniciarPagina();
 
   } catch (error) {
+
     console.error(error);
 
     alert(
@@ -434,19 +871,31 @@ async function asignar(id) {
   }
 }
 
+
+/* ==================================
+   EVENTOS
+================================== */
+
 fEstado.addEventListener(
   "change",
   render
 );
+
 
 buscar.addEventListener(
   "input",
   render
 );
 
+
+/* ==================================
+   SEGURIDAD
+================================== */
+
 protegerPagina([
   "administrador"
 ]);
+
 </script>
 
 </body>

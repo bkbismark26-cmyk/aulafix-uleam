@@ -38,3 +38,30 @@ img.preview{max-width:100%;max-height:360px;border-radius:12px;border:1px solid 
 .timeline{border-left:3px solid #cbd5e1;padding-left:16px}
 .timeline .item{margin:0 0 14px}
 @media(max-width:700px){header{align-items:flex-start;flex-direction:column}table{font-size:.9rem}.container{margin-top:16px}}
+
+.notificaciones-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.contador-notificaciones {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 999px;
+
+  background: #dc2626;
+  color: #fff;
+
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}

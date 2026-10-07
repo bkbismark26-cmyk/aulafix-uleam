@@ -1,0 +1,890 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
+  <title>Notificaciones - AulaFix ULEAM</title>
+
+  <link
+    rel="stylesheet"
+    href="/css/style.css"
+  >
+
+  <style>
+    .notificaciones-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .resumen-notificaciones {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .filtros-notificaciones {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .filtro-notificacion.activo {
+      background: #0f766e;
+      color: white;
+    }
+
+    .notificacion-item {
+      border-left: 5px solid #cbd5e1;
+      transition: 0.2s ease;
+    }
+
+    .notificacion-item.no-leida {
+      border-left-color: #0f766e;
+    }
+
+    .notificacion-item:hover {
+      transform: translateY(-1px);
+    }
+
+    .notificacion-cabecera {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .notificacion-titulo {
+      margin: 0 0 6px;
+    }
+
+    .notificacion-mensaje {
+      margin: 10px 0;
+    }
+
+    .notificacion-fecha {
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+
+    .estado-nueva {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .estado-leida {
+      background: #e2e8f0;
+      color: #475569;
+    }
+
+    .acciones-notificacion {
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .sin-resultados {
+      text-align: center;
+      padding: 30px;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+
+  <strong>
+    AulaFix ULEAM
+  </strong>
+
+  <nav>
+
+    <a
+      href="#"
+      id="btnVolver"
+    >
+      Volver
+    </a>
+
+    <span data-user-name></span>
+
+    <a
+      href="#"
+      onclick="cerrarSesion()"
+    >
+      Salir
+    </a>
+
+  </nav>
+
+</header>
+
+
+<div class="container">
+
+  <div class="card">
+
+    <div class="notificaciones-header">
+
+      <div>
+
+        <h1>
+          🔔 Notificaciones
+        </h1>
+
+        <p class="small">
+          Avisos relacionados con tus reportes y tareas.
+        </p>
+
+      </div>
+
+      <button
+        id="btnMarcarTodas"
+        type="button"
+        onclick="marcarTodasComoLeidas()"
+      >
+        Marcar todas como leídas
+      </button>
+
+    </div>
+
+
+    <div class="resumen-notificaciones">
+
+      <span
+        id="contadorTotal"
+        class="badge"
+      >
+        0 total
+      </span>
+
+      <span
+        id="contadorNoLeidas"
+        class="badge priority-media"
+      >
+        0 no leídas
+      </span>
+
+    </div>
+
+
+    <div class="filtros-notificaciones">
+
+      <button
+        type="button"
+        class="secondary filtro-notificacion activo"
+        data-filtro="todas"
+        onclick="cambiarFiltro('todas', this)"
+      >
+        Todas
+      </button>
+
+      <button
+        type="button"
+        class="secondary filtro-notificacion"
+        data-filtro="no_leidas"
+        onclick="cambiarFiltro('no_leidas', this)"
+      >
+        No leídas
+      </button>
+
+      <button
+        type="button"
+        class="secondary filtro-notificacion"
+        data-filtro="leidas"
+        onclick="cambiarFiltro('leidas', this)"
+      >
+        Leídas
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <div id="listaNotificaciones">
+
+    <div class="notice">
+      Cargando notificaciones...
+    </div>
+
+  </div>
+
+</div>
+
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+<script src="/js/firebase-config.js"></script>
+<script src="/js/cloudinary-config.js"></script>
+<script src="/js/upload.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/db.js"></script>
+
+
+<script>
+
+let notificaciones = [];
+
+let filtroActual =
+  "todas";
+
+let unsubscribeNotificacionesPagina =
+  null;
+
+
+/* ==================================
+   ESCAPAR TEXTO
+================================== */
+
+function esc(s) {
+
+  return String(
+    s ?? ""
+  ).replace(
+    /[&<>"']/g,
+    m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[m])
+  );
+}
+
+
+/* ==================================
+   FECHA
+================================== */
+
+function formatearFecha(valor) {
+
+  if (!valor) {
+    return "Sin fecha";
+  }
+
+  if (valor.toDate) {
+
+    return valor
+      .toDate()
+      .toLocaleString();
+  }
+
+  const fecha =
+    new Date(valor);
+
+  if (
+    isNaN(
+      fecha.getTime()
+    )
+  ) {
+    return "Sin fecha";
+  }
+
+  return fecha.toLocaleString();
+}
+
+
+/* ==================================
+   BOTÓN VOLVER SEGÚN ROL
+================================== */
+
+function configurarBotonVolver() {
+
+  const boton =
+    document.getElementById(
+      "btnVolver"
+    );
+
+  if (!boton) {
+    return;
+  }
+
+
+  if (
+    perfilActual?.rol ===
+    "administrador"
+  ) {
+
+    boton.href =
+      "/admin/dashboard.html";
+
+    return;
+  }
+
+
+  if (
+    perfilActual?.rol ===
+    "tecnico"
+  ) {
+
+    boton.href =
+      "/tecnico/tareas.html";
+
+    return;
+  }
+
+
+  boton.href =
+    "/mis-reportes.html";
+}
+
+
+/* ==================================
+   ESCUCHAR NOTIFICACIONES
+   EN TIEMPO REAL
+================================== */
+
+function escucharNotificaciones() {
+
+  if (
+    !usuarioActual?.uid
+  ) {
+    return;
+  }
+
+
+  if (
+    unsubscribeNotificacionesPagina
+  ) {
+
+    unsubscribeNotificacionesPagina();
+  }
+
+
+  unsubscribeNotificacionesPagina =
+    db
+      .collection(
+        "notificaciones"
+      )
+      .where(
+        "usuario_id",
+        "==",
+        usuarioActual.uid
+      )
+      .onSnapshot(
+
+        snapshot => {
+
+          notificaciones =
+            snapshot.docs.map(
+              doc => ({
+                id:
+                  doc.id,
+
+                ...doc.data()
+              })
+            );
+
+
+          notificaciones.sort(
+            (a, b) => {
+
+              const fechaA =
+                a.creado_en?.seconds ||
+                0;
+
+              const fechaB =
+                b.creado_en?.seconds ||
+                0;
+
+              return (
+                fechaB -
+                fechaA
+              );
+            }
+          );
+
+
+          actualizarResumen();
+
+          render();
+        },
+
+        error => {
+
+          console.error(
+            "Error cargando notificaciones:",
+            error
+          );
+
+
+          listaNotificaciones.innerHTML = `
+            <div class="notice error">
+              No se pudieron cargar las notificaciones.
+            </div>
+          `;
+        }
+      );
+}
+
+
+/* ==================================
+   RESUMEN
+================================== */
+
+function actualizarResumen() {
+
+  const total =
+    notificaciones.length;
+
+
+  const noLeidas =
+    notificaciones.filter(
+      n =>
+        !n.leida
+    ).length;
+
+
+  contadorTotal.textContent =
+    `${total} total`;
+
+
+  contadorNoLeidas.textContent =
+    `${noLeidas} no leídas`;
+
+
+  const boton =
+    document.getElementById(
+      "btnMarcarTodas"
+    );
+
+
+  if (boton) {
+
+    boton.disabled =
+      noLeidas === 0;
+  }
+}
+
+
+/* ==================================
+   FILTRAR
+================================== */
+
+function cambiarFiltro(
+  filtro,
+  boton
+) {
+
+  filtroActual =
+    filtro;
+
+
+  document
+    .querySelectorAll(
+      ".filtro-notificacion"
+    )
+    .forEach(
+      elemento => {
+
+        elemento.classList.remove(
+          "activo"
+        );
+      }
+    );
+
+
+  if (boton) {
+
+    boton.classList.add(
+      "activo"
+    );
+  }
+
+
+  render();
+}
+
+
+/* ==================================
+   RENDER
+================================== */
+
+function render() {
+
+  let data =
+    [...notificaciones];
+
+
+  if (
+    filtroActual ===
+    "no_leidas"
+  ) {
+
+    data =
+      data.filter(
+        n =>
+          !n.leida
+      );
+  }
+
+
+  if (
+    filtroActual ===
+    "leidas"
+  ) {
+
+    data =
+      data.filter(
+        n =>
+          n.leida
+      );
+  }
+
+
+  if (
+    !data.length
+  ) {
+
+    listaNotificaciones.innerHTML = `
+
+      <div class="card sin-resultados">
+
+        <h3>
+          Sin notificaciones
+        </h3>
+
+        <p class="small">
+          No hay elementos para este filtro.
+        </p>
+
+      </div>
+    `;
+
+    return;
+  }
+
+
+  listaNotificaciones.innerHTML =
+    data.map(
+      n => `
+
+        <div
+          class="
+            card
+            notificacion-item
+            ${
+              !n.leida
+                ? "no-leida"
+                : ""
+            }
+          "
+        >
+
+          <div
+            class="notificacion-cabecera"
+          >
+
+            <div>
+
+              <h3
+                class="notificacion-titulo"
+              >
+                ${esc(
+                  n.titulo ||
+                  "Notificación"
+                )}
+              </h3>
+
+              <div
+                class="notificacion-fecha"
+              >
+                ${esc(
+                  formatearFecha(
+                    n.creado_en
+                  )
+                )}
+              </div>
+
+            </div>
+
+
+            <span
+              class="
+                badge
+                ${
+                  !n.leida
+                    ? "estado-nueva"
+                    : "estado-leida"
+                }
+              "
+            >
+
+              ${
+                !n.leida
+                  ? "Nueva"
+                  : "Leída"
+              }
+
+            </span>
+
+          </div>
+
+
+          <p
+            class="notificacion-mensaje"
+          >
+            ${esc(
+              n.mensaje ||
+              ""
+            )}
+          </p>
+
+
+          <div
+            class="acciones-notificacion"
+          >
+
+            ${
+              !n.leida
+                ? `
+                  <button
+                    type="button"
+                    onclick="marcarLeida(
+                      '${n.id}'
+                    )"
+                  >
+                    Marcar como leída
+                  </button>
+                `
+                : ""
+            }
+
+
+            ${
+              n.reporte_id
+                ? `
+                  <button
+                    type="button"
+                    class="secondary"
+                    onclick="abrirReporte(
+                      '${n.id}',
+                      '${n.reporte_id}'
+                    )"
+                  >
+                    Ver reporte
+                  </button>
+                `
+                : ""
+            }
+
+          </div>
+
+        </div>
+
+      `
+    ).join("");
+}
+
+
+/* ==================================
+   MARCAR UNA COMO LEÍDA
+================================== */
+
+async function marcarLeida(id) {
+
+  try {
+
+    await marcarNotificacionLeida(
+      id
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      "No se pudo marcar la notificación como leída."
+    );
+  }
+}
+
+
+/* ==================================
+   MARCAR TODAS COMO LEÍDAS
+================================== */
+
+async function marcarTodasComoLeidas() {
+
+  const pendientes =
+    notificaciones.filter(
+      n =>
+        !n.leida
+    );
+
+
+  if (
+    !pendientes.length
+  ) {
+    return;
+  }
+
+
+  const confirmar =
+    confirm(
+      `¿Marcar ${pendientes.length} notificación(es) como leída(s)?`
+    );
+
+
+  if (!confirmar) {
+    return;
+  }
+
+
+  try {
+
+    const batch =
+      db.batch();
+
+
+    pendientes.forEach(
+      n => {
+
+        const ref =
+          db
+            .collection(
+              "notificaciones"
+            )
+            .doc(
+              n.id
+            );
+
+
+        batch.update(
+          ref,
+          {
+            leida: true
+          }
+        );
+      }
+    );
+
+
+    await batch.commit();
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      "No se pudieron actualizar las notificaciones."
+    );
+  }
+}
+
+
+/* ==================================
+   ABRIR REPORTE
+================================== */
+
+async function abrirReporte(
+  notificacionId,
+  reporteId
+) {
+
+  try {
+
+    const notificacion =
+      notificaciones.find(
+        n =>
+          n.id ===
+          notificacionId
+      );
+
+
+    if (
+      notificacion &&
+      !notificacion.leida
+    ) {
+
+      await marcarNotificacionLeida(
+        notificacionId
+      );
+    }
+
+
+    if (
+      perfilActual?.rol ===
+      "administrador"
+    ) {
+
+      location.href =
+        `/admin/reportes.html?id=${encodeURIComponent(
+          reporteId
+        )}`;
+
+      return;
+    }
+
+
+    if (
+      perfilActual?.rol ===
+      "tecnico"
+    ) {
+
+      location.href =
+        "/tecnico/tareas.html";
+
+      return;
+    }
+
+
+    location.href =
+      `/reporte-detalle.html?id=${encodeURIComponent(
+        reporteId
+      )}`;
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      "No se pudo abrir el reporte."
+    );
+  }
+}
+
+
+/* ==================================
+   INICIAR
+================================== */
+
+async function iniciarPagina() {
+
+  configurarBotonVolver();
+
+  escucharNotificaciones();
+}
+
+
+/* ==================================
+   SEGURIDAD
+================================== */
+
+protegerPagina([
+  "usuario",
+  "tecnico",
+  "administrador"
+]);
+
+</script>
+
+</body>
+</html>

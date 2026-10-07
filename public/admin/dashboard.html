@@ -35,6 +35,33 @@
     .ranking-table table {
       min-width: 700px;
     }
+
+    .notificaciones-link {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      text-decoration: none;
+    }
+
+    .contador-notificaciones {
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      border-radius: 999px;
+
+      background: #dc2626;
+      color: white;
+
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+    }
   </style>
 </head>
 
@@ -44,6 +71,7 @@
   <strong>AulaFix · Administración</strong>
 
   <nav>
+
     <a href="/admin/dashboard.html">
       Dashboard
     </a>
@@ -56,11 +84,32 @@
       Usuarios
     </a>
 
+    <a
+      href="/notificaciones.html"
+      id="notificacionesLink"
+      class="notificaciones-link"
+      title="Notificaciones"
+    >
+      🔔
+
+      <span
+        id="contadorNotificaciones"
+        class="contador-notificaciones"
+        style="display:none"
+      >
+        0
+      </span>
+    </a>
+
     <span data-user-name></span>
 
-    <a href="#" onclick="cerrarSesion()">
+    <a
+      href="#"
+      onclick="cerrarSesion()"
+    >
       Salir
     </a>
+
   </nav>
 </header>
 
@@ -74,7 +123,9 @@
   </p>
 
 
-  <!-- MÉTRICAS -->
+  <!-- =========================
+       MÉTRICAS
+  ========================== -->
 
   <div
     id="metricas"
@@ -84,13 +135,17 @@
   </div>
 
 
-  <!-- GRÁFICOS -->
+  <!-- =========================
+       GRÁFICOS
+  ========================== -->
 
   <div class="grid">
 
     <div class="card">
 
-      <h2>Reportes por estado</h2>
+      <h2>
+        Reportes por estado
+      </h2>
 
       <div class="chart-box">
 
@@ -103,7 +158,9 @@
 
     <div class="card">
 
-      <h2>Reportes por prioridad</h2>
+      <h2>
+        Reportes por prioridad
+      </h2>
 
       <div class="chart-box">
 
@@ -116,11 +173,15 @@
   </div>
 
 
-  <!-- RENDIMIENTO -->
+  <!-- =========================
+       RENDIMIENTO
+  ========================== -->
 
   <div class="card">
 
-    <h2>Rendimiento de técnicos</h2>
+    <h2>
+      Rendimiento de técnicos
+    </h2>
 
     <p class="small">
       Resumen de incidencias asignadas y finalizadas por cada técnico.
@@ -136,11 +197,15 @@
   </div>
 
 
-  <!-- CATEGORÍAS -->
+  <!-- =========================
+       CATEGORÍAS
+  ========================== -->
 
   <div class="card">
 
-    <h2>Reportes por categoría</h2>
+    <h2>
+      Reportes por categoría
+    </h2>
 
     <div id="categorias">
       Cargando...
@@ -149,11 +214,15 @@
   </div>
 
 
-  <!-- RECIENTES -->
+  <!-- =========================
+       REPORTES RECIENTES
+  ========================== -->
 
   <div class="card">
 
-    <h2>Reportes recientes</h2>
+    <h2>
+      Reportes recientes
+    </h2>
 
     <div id="recientes">
       Cargando...
@@ -164,22 +233,26 @@
 </div>
 
 
-<!-- FIREBASE -->
+<!-- =========================
+     FIREBASE
+========================== -->
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
+></script>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
+></script>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
+></script>
 
 <script src="/js/firebase-config.js"></script>
-
 <script src="/js/cloudinary-config.js"></script>
-
 <script src="/js/upload.js"></script>
-
 <script src="/js/auth.js"></script>
-
 <script src="/js/db.js"></script>
 
 
@@ -194,7 +267,6 @@ let chartPrioridad = null;
 ================================== */
 
 function esc(s) {
-
   return String(s ?? "").replace(
     /[&<>"']/g,
     m => ({
@@ -205,7 +277,6 @@ function esc(s) {
       "'": "&#039;"
     }[m])
   );
-
 }
 
 
@@ -228,7 +299,6 @@ function convertirFecha(valor) {
   return isNaN(fecha.getTime())
     ? null
     : fecha;
-
 }
 
 
@@ -254,7 +324,6 @@ function estaVencido(reporte) {
     reporte.vence_en.toDate() <
     new Date()
   );
-
 }
 
 
@@ -270,7 +339,6 @@ function obtenerEstadoSLA(reporte) {
       texto: "SIN SLA",
       clase: "badge"
     };
-
   }
 
   if (
@@ -282,7 +350,6 @@ function obtenerEstadoSLA(reporte) {
       texto: "FINALIZADO",
       clase: "badge status"
     };
-
   }
 
   if (
@@ -293,13 +360,11 @@ function obtenerEstadoSLA(reporte) {
       texto: "RECHAZADO",
       clase: "badge"
     };
-
   }
 
   const diferencia =
     reporte.vence_en.toDate() -
     new Date();
-
 
   if (diferencia <= 0) {
 
@@ -307,9 +372,7 @@ function obtenerEstadoSLA(reporte) {
       texto: "VENCIDO",
       clase: "badge priority-urgente"
     };
-
   }
-
 
   if (
     diferencia <=
@@ -320,20 +383,17 @@ function obtenerEstadoSLA(reporte) {
       texto: "PRÓXIMO A VENCER",
       clase: "badge priority-media"
     };
-
   }
-
 
   return {
     texto: "A TIEMPO",
     clase: "badge priority-baja"
   };
-
 }
 
 
 /* ==================================
-   OBTENER FECHA DE RESOLUCIÓN
+   FECHA DE RESOLUCIÓN
 ================================== */
 
 function obtenerFechaResolucion(reporte) {
@@ -348,11 +408,9 @@ function obtenerFechaResolucion(reporte) {
     );
 
   if (solucion) {
-
     return convertirFecha(
       solucion.fecha
     );
-
   }
 
   const cierre =
@@ -362,15 +420,12 @@ function obtenerFechaResolucion(reporte) {
     );
 
   if (cierre) {
-
     return convertirFecha(
       cierre.fecha
     );
-
   }
 
   return null;
-
 }
 
 
@@ -402,7 +457,6 @@ function calcularTiempoResolucion(reporte) {
   }
 
   return diferencia;
-
 }
 
 
@@ -440,23 +494,67 @@ function formatearDuracion(ms) {
   const mins =
     minutos % 60;
 
-
   if (dias > 0) {
-
     return `${dias} d ${horas} h`;
-
   }
-
 
   if (horas > 0) {
-
     return `${horas} h ${mins} min`;
-
   }
 
-
   return `${mins} min`;
+}
 
+
+/* ==================================
+   CONTADOR DE NOTIFICACIONES
+================================== */
+
+async function actualizarContadorNotificaciones() {
+
+  const contador =
+    document.getElementById(
+      "contadorNotificaciones"
+    );
+
+  if (
+    !contador ||
+    !usuarioActual?.uid
+  ) {
+    return;
+  }
+
+  try {
+
+    const cantidad =
+      await contarNotificacionesNoLeidas(
+        usuarioActual.uid
+      );
+
+    contador.textContent =
+      cantidad;
+
+    if (cantidad > 0) {
+
+      contador.style.display =
+        "inline-flex";
+
+    } else {
+
+      contador.style.display =
+        "none";
+    }
+
+  } catch (error) {
+
+    console.error(
+      "Error cargando contador de notificaciones:",
+      error
+    );
+
+    contador.style.display =
+      "none";
+  }
 }
 
 
@@ -467,6 +565,17 @@ function formatearDuracion(ms) {
 async function iniciarPagina() {
 
   try {
+
+    /* -------------------------
+       NOTIFICACIONES
+    ------------------------- */
+
+    await actualizarContadorNotificaciones();
+
+
+    /* -------------------------
+       REPORTES
+    ------------------------- */
 
     const data =
       await listarTodosReportes();
@@ -495,7 +604,6 @@ async function iniciarPagina() {
       rechazado: 0,
 
       vencido: 0
-
     };
 
 
@@ -511,9 +619,7 @@ async function iniciarPagina() {
           contador[
             reporte.estado
           ]++;
-
         }
-
 
         if (
           estaVencido(
@@ -522,9 +628,7 @@ async function iniciarPagina() {
         ) {
 
           contador.vencido++;
-
         }
-
       }
     );
 
@@ -576,7 +680,8 @@ async function iniciarPagina() {
     const promedioResolucion =
       tiemposResolucion.length
         ? tiemposResolucion.reduce(
-            (a, b) => a + b,
+            (a, b) =>
+              a + b,
             0
           ) /
           tiemposResolucion.length
@@ -735,11 +840,8 @@ async function iniciarPagina() {
     const prioridades = {
 
       baja: 0,
-
       media: 0,
-
       alta: 0,
-
       urgente: 0
 
     };
@@ -757,9 +859,7 @@ async function iniciarPagina() {
           prioridades[
             r.prioridad
           ]++;
-
         }
-
       }
     );
 
@@ -769,9 +869,7 @@ async function iniciarPagina() {
     ============================== */
 
     if (chartEstados) {
-
       chartEstados.destroy();
-
     }
 
 
@@ -797,31 +895,20 @@ async function iniciarPagina() {
             ],
 
             datasets: [
-
               {
-
                 data: [
 
                   contador.pendiente,
-
                   contador.revisado,
-
                   contador.asignado,
-
                   contador.en_proceso,
-
                   contador.solucionado,
-
                   contador.cerrado,
-
                   contador.rechazado
 
                 ]
-
               }
-
             ]
-
           },
 
           options: {
@@ -833,15 +920,10 @@ async function iniciarPagina() {
             plugins: {
 
               legend: {
-
                 position: "bottom"
-
               }
-
             }
-
           }
-
         }
       );
 
@@ -851,9 +933,7 @@ async function iniciarPagina() {
     ============================== */
 
     if (chartPrioridad) {
-
       chartPrioridad.destroy();
-
     }
 
 
@@ -876,28 +956,18 @@ async function iniciarPagina() {
             ],
 
             datasets: [
-
               {
-
                 label:
                   "Cantidad de reportes",
 
                 data: [
-
                   prioridades.baja,
-
                   prioridades.media,
-
                   prioridades.alta,
-
                   prioridades.urgente
-
                 ]
-
               }
-
             ]
-
           },
 
           options: {
@@ -913,17 +983,11 @@ async function iniciarPagina() {
                 beginAtZero: true,
 
                 ticks: {
-
                   precision: 0
-
                 }
-
               }
-
             }
-
           }
-
         }
       );
 
@@ -966,9 +1030,7 @@ async function iniciarPagina() {
             cerrados: 0,
 
             tiempos: []
-
           };
-
         }
 
 
@@ -989,7 +1051,6 @@ async function iniciarPagina() {
         ) {
 
           tecnico.activos++;
-
         }
 
 
@@ -999,7 +1060,6 @@ async function iniciarPagina() {
         ) {
 
           tecnico.solucionados++;
-
         }
 
 
@@ -1009,7 +1069,6 @@ async function iniciarPagina() {
         ) {
 
           tecnico.cerrados++;
-
         }
 
 
@@ -1019,14 +1078,14 @@ async function iniciarPagina() {
           );
 
 
-        if (tiempo !== null) {
+        if (
+          tiempo !== null
+        ) {
 
           tecnico.tiempos.push(
             tiempo
           );
-
         }
-
       }
     );
 
@@ -1092,14 +1151,12 @@ async function iniciarPagina() {
 
                     const promedio =
                       tecnico.tiempos.length
-
                         ? tecnico.tiempos.reduce(
                             (a, b) =>
                               a + b,
                             0
                           ) /
                           tecnico.tiempos.length
-
                         : null;
 
 
@@ -1140,7 +1197,6 @@ async function iniciarPagina() {
                       </tr>
 
                     `;
-
                   }
                 )
                 .join("")
@@ -1155,12 +1211,13 @@ async function iniciarPagina() {
     } else {
 
       rendimientoTecnicos.innerHTML = `
+
         <p class="small">
           Todavía no existen
           reportes asignados a técnicos.
         </p>
-      `;
 
+      `;
     }
 
 
@@ -1178,7 +1235,6 @@ async function iniciarPagina() {
           reporte.categoria ||
           "Sin categoría";
 
-
         conteoCategorias[
           categoria
         ] =
@@ -1187,7 +1243,6 @@ async function iniciarPagina() {
               categoria
             ] || 0
           ) + 1;
-
       }
     );
 
@@ -1295,7 +1350,7 @@ async function iniciarPagina() {
 
                   <div
                     style="
-                      padding: 14px 0;
+                      padding:14px 0;
                       border-bottom:
                       1px solid #e5e7eb;
                     "
@@ -1343,11 +1398,9 @@ async function iniciarPagina() {
                         <span
                           class="badge status"
                         >
-
                           ${esc(
                             reporte.estado
                           )}
-
                         </span>
 
 
@@ -1359,20 +1412,16 @@ async function iniciarPagina() {
                           )}
                           "
                         >
-
                           ${esc(
                             reporte.prioridad
                           )}
-
                         </span>
 
 
                         <span
                           class="${sla.clase}"
                         >
-
                           ${sla.texto}
-
                         </span>
 
                       </div>
@@ -1382,7 +1431,6 @@ async function iniciarPagina() {
                   </div>
 
                 `;
-
               }
             )
             .join("")
@@ -1414,9 +1462,7 @@ async function iniciarPagina() {
       </div>
 
     `;
-
   }
-
 }
 
 
@@ -1431,5 +1477,4 @@ protegerPagina([
 </script>
 
 </body>
-
 </html>

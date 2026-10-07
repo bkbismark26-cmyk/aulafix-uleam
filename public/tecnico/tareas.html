@@ -1,33 +1,296 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mis tareas</title><link rel="stylesheet" href="/css/style.css"></head><body><header><strong>AulaFix · Técnico</strong><nav><a href="/tecnico/tareas.html">Mis tareas</a><span data-user-name></span><a href="#" onclick="cerrarSesion()">Salir</a></nav></header>
-<div class="container"><div class="card"><h1>Mis tareas</h1><p class="small">Incidencias asignadas a tu cuenta.</p></div><div id="lista">Cargando...</div></div>
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mis tareas</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+<header>
+  <strong>AulaFix · Técnico</strong>
+
+  <nav>
+    <a href="/tecnico/tareas.html">
+      Mis tareas
+    </a>
+
+    <span data-user-name></span>
+
+    <a href="#" onclick="cerrarSesion()">
+      Salir
+    </a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <div class="card">
+
+    <h1>Mis tareas</h1>
+
+    <p class="small">
+      Incidencias asignadas a tu cuenta.
+    </p>
+
+  </div>
+
+  <div id="lista">
+    Cargando...
+  </div>
+
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
 <script src="/js/upload.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/db.js"></script>
+<script src="/js/notifications-ui.js"></script>
 
 <script>
-let tareas=[];
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
-async function iniciarPagina(){tareas=await listarTareasTecnico(usuarioActual.uid);render()}
-function render(){lista.innerHTML=tareas.map(r=>`<div class="card"><h3>${esc(r.titulo)}</h3>
-<p><span class="badge status">${esc(r.estado)}</span> <span class="badge priority-${esc(r.prioridad)}">${esc(r.prioridad)}</span></p>
-<p>${esc(r.descripcion)}</p><p><b>Ubicación:</b> ${esc(r.ubicacion?.facultad)} · ${esc(r.ubicacion?.bloque)} · ${esc(r.ubicacion?.piso)} · ${esc(r.ubicacion?.aula)}</p>
-${r.imagen_inicial_url?`<img class="preview" src="${r.imagen_inicial_url}">`:""}
-<div class="actions">
-${r.estado==="asignado"?`<button onclick="cambiar('${r.id}','en_proceso')">Iniciar trabajo</button>`:""}
-${r.estado==="en_proceso"?`<button onclick="resolver('${r.id}')">Marcar solucionado</button>`:""}
-</div></div>`).join("")||'<div class="notice">No tienes tareas pendientes.</div>'}
-async function cambiar(id,nuevo){const r=tareas.find(x=>x.id===id);const nota=prompt("Nota:", "")||"";await cambiarEstadoReporte(id,r,nuevo,nota,perfilActual.nombre);await iniciarPagina()}
-async function resolver(id){
- const r=tareas.find(x=>x.id===id);
- const input=document.createElement("input");input.type="file";input.accept="image/*";
- input.onchange=async()=>{try{const url=await subirImagenCloudinary(input.files[0]);await cambiarEstadoReporte(id,r,"solucionado","Trabajo finalizado",perfilActual.nombre,{evidencia_final_url:url});await iniciarPagina()}catch(e){alert(e.message)}};
- input.click();
+
+let tareas = [];
+
+function esc(s) {
+  return String(s ?? "").replace(
+    /[&<>"']/g,
+    m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[m])
+  );
 }
-protegerPagina(["tecnico","administrador"]);
-</script></body></html>
+
+async function iniciarPagina() {
+
+  await inicializarNotificacionesUI();
+
+  tareas =
+    await listarTareasTecnico(
+      usuarioActual.uid
+    );
+
+  render();
+}
+
+function render() {
+
+  lista.innerHTML =
+    tareas.map(
+      r => `
+        <div class="card">
+
+          <h3>
+            ${esc(r.titulo)}
+          </h3>
+
+          <p>
+
+            <span class="badge status">
+              ${esc(r.estado)}
+            </span>
+
+            <span
+              class="badge priority-${esc(r.prioridad)}"
+            >
+              ${esc(r.prioridad)}
+            </span>
+
+          </p>
+
+          <p>
+            ${esc(r.descripcion)}
+          </p>
+
+          <p>
+            <b>Ubicación:</b>
+            ${esc(r.ubicacion?.facultad)}
+            ·
+            ${esc(r.ubicacion?.bloque)}
+            ·
+            ${esc(r.ubicacion?.piso)}
+            ·
+            ${esc(r.ubicacion?.aula)}
+          </p>
+
+          ${
+            r.imagen_inicial_url
+              ? `
+                <img
+                  class="preview"
+                  src="${r.imagen_inicial_url}"
+                  alt="Evidencia inicial"
+                >
+              `
+              : ""
+          }
+
+          <div class="actions">
+
+            ${
+              r.estado === "asignado"
+                ? `
+                  <button
+                    onclick="cambiar(
+                      '${r.id}',
+                      'en_proceso'
+                    )"
+                  >
+                    Iniciar trabajo
+                  </button>
+                `
+                : ""
+            }
+
+            ${
+              r.estado === "en_proceso"
+                ? `
+                  <button
+                    onclick="resolver('${r.id}')"
+                  >
+                    Marcar solucionado
+                  </button>
+                `
+                : ""
+            }
+
+          </div>
+
+        </div>
+      `
+    ).join("")
+    ||
+    `
+      <div class="notice">
+        No tienes tareas pendientes.
+      </div>
+    `;
+}
+
+async function cambiar(
+  id,
+  nuevo
+) {
+
+  const r =
+    tareas.find(
+      x => x.id === id
+    );
+
+  if (!r) {
+    return;
+  }
+
+  const nota =
+    prompt(
+      "Nota:",
+      ""
+    ) || "";
+
+  try {
+
+    await cambiarEstadoReporte(
+      id,
+      r,
+      nuevo,
+      nota,
+      perfilActual.nombre
+    );
+
+    await iniciarPagina();
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      error.message
+    );
+  }
+}
+
+async function resolver(id) {
+
+  const r =
+    tareas.find(
+      x => x.id === id
+    );
+
+  if (!r) {
+    return;
+  }
+
+  const input =
+    document.createElement(
+      "input"
+    );
+
+  input.type =
+    "file";
+
+  input.accept =
+    "image/*";
+
+  input.onchange =
+    async () => {
+
+      if (
+        !input.files[0]
+      ) {
+        return;
+      }
+
+      try {
+
+        const url =
+          await subirImagenCloudinary(
+            input.files[0]
+          );
+
+        await cambiarEstadoReporte(
+          id,
+          r,
+          "solucionado",
+          "Trabajo finalizado",
+          perfilActual.nombre,
+          {
+            evidencia_final_url:
+              url
+          }
+        );
+
+        await iniciarPagina();
+
+      } catch (error) {
+
+        console.error(error);
+
+        alert(
+          error.message
+        );
+      }
+    };
+
+  input.click();
+}
+
+protegerPagina([
+  "tecnico",
+  "administrador"
+]);
+
+</script>
+
+</body>
+</html>

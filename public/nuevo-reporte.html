@@ -1,51 +1,371 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuevo reporte</title><link rel="stylesheet" href="/css/style.css"></head><body><header><strong>AulaFix ULEAM</strong><nav>
-<a href="/mis-reportes.html">Mis reportes</a><a href="/nuevo-reporte.html">Nuevo reporte</a>
-<span data-user-name></span><a href="#" onclick="cerrarSesion()">Salir</a></nav></header>
-<div class="container"><div class="card">
-<h1>Nuevo reporte de incidencia</h1><p class="small">Describe el problema con suficiente detalle para que pueda ser atendido.</p>
-<div id="msg"></div>
-<form id="form">
-<div class="grid">
-<div><label>Título</label><input id="titulo" maxlength="80" required></div>
-<div><label>Categoría</label><select id="categoria" required>
-<option>Equipos tecnológicos</option><option>Electricidad</option><option>Climatización</option><option>Mobiliario</option><option>Internet/Red</option><option>Limpieza</option><option>Infraestructura</option><option>Otro</option>
-</select></div>
-<div><label>Prioridad sugerida</label><select id="prioridad"><option>baja</option><option selected>media</option><option>alta</option><option>urgente</option></select></div>
-<div><label>Facultad</label><input id="facultad" required></div>
-<div><label>Bloque</label><input id="bloque" required></div>
-<div><label>Piso</label><input id="piso" required></div>
-<div><label>Aula/Laboratorio</label><input id="aula" required></div>
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nuevo reporte</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+<header>
+  <strong>AulaFix ULEAM</strong>
+
+  <nav>
+
+    <a href="/mis-reportes.html">
+      Mis reportes
+    </a>
+
+    <a href="/nuevo-reporte.html">
+      Nuevo reporte
+    </a>
+
+    <span data-user-name></span>
+
+    <a
+      href="#"
+      onclick="cerrarSesion()"
+    >
+      Salir
+    </a>
+
+  </nav>
+</header>
+
+
+<div class="container">
+
+  <div class="card">
+
+    <h1>
+      Nuevo reporte de incidencia
+    </h1>
+
+    <p class="small">
+      Describe el problema con suficiente detalle para que pueda ser atendido.
+    </p>
+
+    <div id="msg"></div>
+
+    <form id="form">
+
+      <div class="grid">
+
+        <div>
+
+          <label for="titulo">
+            Título
+          </label>
+
+          <input
+            id="titulo"
+            maxlength="80"
+            required
+          >
+
+        </div>
+
+
+        <div>
+
+          <label for="categoria">
+            Categoría
+          </label>
+
+          <select
+            id="categoria"
+            required
+          >
+
+            <option>
+              Equipos tecnológicos
+            </option>
+
+            <option>
+              Electricidad
+            </option>
+
+            <option>
+              Climatización
+            </option>
+
+            <option>
+              Mobiliario
+            </option>
+
+            <option>
+              Internet/Red
+            </option>
+
+            <option>
+              Limpieza
+            </option>
+
+            <option>
+              Infraestructura
+            </option>
+
+            <option>
+              Otro
+            </option>
+
+          </select>
+
+        </div>
+
+
+        <div>
+
+          <label for="prioridad">
+            Prioridad sugerida
+          </label>
+
+          <select id="prioridad">
+
+            <option>
+              baja
+            </option>
+
+            <option selected>
+              media
+            </option>
+
+            <option>
+              alta
+            </option>
+
+            <option>
+              urgente
+            </option>
+
+          </select>
+
+        </div>
+
+
+        <div>
+
+          <label for="facultad">
+            Facultad
+          </label>
+
+          <input
+            id="facultad"
+            required
+          >
+
+        </div>
+
+
+        <div>
+
+          <label for="bloque">
+            Bloque
+          </label>
+
+          <input
+            id="bloque"
+            required
+          >
+
+        </div>
+
+
+        <div>
+
+          <label for="piso">
+            Piso
+          </label>
+
+          <input
+            id="piso"
+            required
+          >
+
+        </div>
+
+
+        <div>
+
+          <label for="aula">
+            Aula/Laboratorio
+          </label>
+
+          <input
+            id="aula"
+            required
+          >
+
+        </div>
+
+      </div>
+
+
+      <label for="descripcion">
+        Descripción
+      </label>
+
+      <textarea
+        id="descripcion"
+        minlength="15"
+        required
+      ></textarea>
+
+
+      <label for="foto">
+        Foto inicial (opcional)
+      </label>
+
+      <input
+        id="foto"
+        type="file"
+        accept="image/*"
+      >
+
+
+      <div
+        class="actions"
+        style="margin-top:16px"
+      >
+
+        <button
+          id="btn"
+          type="submit"
+        >
+          Enviar reporte
+        </button>
+
+      </div>
+
+    </form>
+
+  </div>
+
 </div>
-<label>Descripción</label><textarea id="descripcion" minlength="15" required></textarea>
-<label>Foto inicial (opcional)</label><input id="foto" type="file" accept="image/*">
-<div class="actions" style="margin-top:16px"><button id="btn">Enviar reporte</button></div>
-</form></div></div>
+
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
 <script src="/js/upload.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/db.js"></script>
+<script src="/js/notifications-ui.js"></script>
 
 <script>
-function iniciarPagina(){
- form.addEventListener("submit",async e=>{
-  e.preventDefault();btn.disabled=true;msg.innerHTML='<div class="notice">Guardando...</div>';
-  try{
-   let url=null;
-   if(foto.files[0]) url=await subirImagenCloudinary(foto.files[0]);
-   const id=await crearReporte({
-    titulo:titulo.value.trim(),categoria:categoria.value,prioridad:prioridad.value,
-    descripcion:descripcion.value.trim(),
-    ubicacion:{facultad:facultad.value.trim(),bloque:bloque.value.trim(),piso:piso.value.trim(),aula:aula.value.trim()},
-    imagen_inicial_url:url,creado_por:usuarioActual.uid,creado_por_nombre:perfilActual.nombre
-   });
-   location.href=`/reporte-detalle.html?id=${id}`;
-  }catch(err){msg.innerHTML=`<div class="notice error">${err.message}</div>`;btn.disabled=false}
- });
+
+async function iniciarPagina() {
+
+  await inicializarNotificacionesUI();
+
+  const form =
+    document.getElementById(
+      "form"
+    );
+
+  form.addEventListener(
+    "submit",
+    async e => {
+
+      e.preventDefault();
+
+      btn.disabled =
+        true;
+
+      msg.innerHTML = `
+        <div class="notice">
+          Guardando...
+        </div>
+      `;
+
+      try {
+
+        let url =
+          null;
+
+        if (
+          foto.files[0]
+        ) {
+
+          url =
+            await subirImagenCloudinary(
+              foto.files[0]
+            );
+        }
+
+        const id =
+          await crearReporte({
+
+            titulo:
+              titulo.value.trim(),
+
+            categoria:
+              categoria.value,
+
+            prioridad:
+              prioridad.value,
+
+            descripcion:
+              descripcion.value.trim(),
+
+            ubicacion: {
+
+              facultad:
+                facultad.value.trim(),
+
+              bloque:
+                bloque.value.trim(),
+
+              piso:
+                piso.value.trim(),
+
+              aula:
+                aula.value.trim()
+            },
+
+            imagen_inicial_url:
+              url,
+
+            creado_por:
+              usuarioActual.uid,
+
+            creado_por_nombre:
+              perfilActual.nombre
+          });
+
+
+        location.href =
+          `/reporte-detalle.html?id=${id}`;
+
+      } catch (error) {
+
+        console.error(error);
+
+        msg.innerHTML = `
+          <div class="notice error">
+            ${error.message}
+          </div>
+        `;
+
+        btn.disabled =
+          false;
+      }
+    }
+  );
 }
-protegerPagina(["usuario","administrador"]);
-</script></body></html>
+
+protegerPagina([
+  "usuario",
+  "administrador"
+]);
+
+</script>
+
+</body>
+</html>

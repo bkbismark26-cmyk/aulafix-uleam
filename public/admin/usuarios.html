@@ -1,28 +1,243 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Usuarios</title><link rel="stylesheet" href="/css/style.css"></head><body><header><strong>AulaFix · Administración</strong><nav>
-<a href="/admin/dashboard.html">Dashboard</a><a href="/admin/reportes.html">Reportes</a><a href="/admin/usuarios.html">Usuarios</a>
-<span data-user-name></span><a href="#" onclick="cerrarSesion()">Salir</a></nav></header>
-<div class="container"><div class="card"><h1>Usuarios y roles</h1><p class="small">Aquí se asignan roles después del registro.</p><div id="tabla">Cargando...</div></div></div>
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Usuarios</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+<header>
+  <strong>AulaFix · Administración</strong>
+
+  <nav>
+    <a href="/admin/dashboard.html">Dashboard</a>
+    <a href="/admin/reportes.html">Reportes</a>
+    <a href="/admin/usuarios.html">Usuarios</a>
+
+    <span data-user-name></span>
+
+    <a href="#" onclick="cerrarSesion()">Salir</a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h1>Usuarios y roles</h1>
+
+    <p class="small">
+      Aquí se asignan roles después del registro.
+    </p>
+
+    <div id="tabla">
+      Cargando...
+    </div>
+  </div>
+
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
 <script src="/js/upload.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/db.js"></script>
+<script src="/js/notifications-ui.js"></script>
 
 <script>
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
-async function iniciarPagina(){
- const data=await listarUsuarios();
- tabla.innerHTML=`<table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Activo</th><th>Acciones</th></tr></thead><tbody>${
- data.map(u=>`<tr><td>${esc(u.nombre)}</td><td>${esc(u.email)}</td><td>
- <select id="rol-${u.id}"><option ${u.rol==="usuario"?"selected":""}>usuario</option><option ${u.rol==="tecnico"?"selected":""}>tecnico</option><option ${u.rol==="administrador"?"selected":""}>administrador</option></select></td>
- <td>${u.activo!==false?"Sí":"No"}</td><td class="actions"><button onclick="guardarRol('${u.id}')">Guardar rol</button><button class="secondary" onclick="toggleActivo('${u.id}',${u.activo!==false})">${u.activo!==false?"Desactivar":"Activar"}</button></td></tr>`).join("")
- }</tbody></table>`;
+
+function esc(s) {
+  return String(s ?? "").replace(
+    /[&<>"']/g,
+    m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[m])
+  );
 }
-async function guardarRol(uid){await cambiarRol(uid,document.getElementById("rol-"+uid).value);alert("Rol actualizado");iniciarPagina()}
-async function toggleActivo(uid,actual){if(uid===usuarioActual.uid){alert("No puedes desactivar tu propia cuenta.");return}await cambiarActivo(uid,!actual);iniciarPagina()}
-protegerPagina(["administrador"]);
-</script></body></html>
+
+async function iniciarPagina() {
+
+  await inicializarNotificacionesUI();
+
+  const data =
+    await listarUsuarios();
+
+  tabla.innerHTML = `
+    <table>
+
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Correo</th>
+          <th>Rol</th>
+          <th>Activo</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        ${
+          data.map(
+            u => `
+              <tr>
+
+                <td>
+                  ${esc(u.nombre)}
+                </td>
+
+                <td>
+                  ${esc(u.email)}
+                </td>
+
+                <td>
+
+                  <select id="rol-${u.id}">
+
+                    <option
+                      value="usuario"
+                      ${u.rol === "usuario" ? "selected" : ""}
+                    >
+                      usuario
+                    </option>
+
+                    <option
+                      value="tecnico"
+                      ${u.rol === "tecnico" ? "selected" : ""}
+                    >
+                      tecnico
+                    </option>
+
+                    <option
+                      value="administrador"
+                      ${u.rol === "administrador" ? "selected" : ""}
+                    >
+                      administrador
+                    </option>
+
+                  </select>
+
+                </td>
+
+                <td>
+                  ${u.activo !== false ? "Sí" : "No"}
+                </td>
+
+                <td class="actions">
+
+                  <button
+                    onclick="guardarRol('${u.id}')"
+                  >
+                    Guardar rol
+                  </button>
+
+                  <button
+                    class="secondary"
+                    onclick="toggleActivo(
+                      '${u.id}',
+                      ${u.activo !== false}
+                    )"
+                  >
+                    ${
+                      u.activo !== false
+                        ? "Desactivar"
+                        : "Activar"
+                    }
+                  </button>
+
+                </td>
+
+              </tr>
+            `
+          ).join("")
+        }
+
+      </tbody>
+
+    </table>
+  `;
+}
+
+async function guardarRol(uid) {
+
+  const nuevoRol =
+    document.getElementById(
+      "rol-" + uid
+    ).value;
+
+  try {
+
+    await cambiarRol(
+      uid,
+      nuevoRol
+    );
+
+    alert(
+      "Rol actualizado"
+    );
+
+    await iniciarPagina();
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      error.message
+    );
+  }
+}
+
+async function toggleActivo(
+  uid,
+  actual
+) {
+
+  if (
+    uid === usuarioActual.uid
+  ) {
+    alert(
+      "No puedes desactivar tu propia cuenta."
+    );
+
+    return;
+  }
+
+  try {
+
+    await cambiarActivo(
+      uid,
+      !actual
+    );
+
+    await iniciarPagina();
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      "No se pudo actualizar el usuario."
+    );
+  }
+}
+
+protegerPagina([
+  "administrador"
+]);
+
+</script>
+
+</body>
+</html>
