@@ -15,25 +15,439 @@
 <script src="/js/db.js"></script>
 
 <script>
-let todos=[],tecnicos=[];
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
-async function iniciarPagina(){todos=await listarTodosReportes();tecnicos=await listarTecnicos();render()}
-function render(){
- const q=buscar.value.toLowerCase();const es=fEstado.value;
- const data=todos.filter(r=>(!es||r.estado===es)&&(!q||JSON.stringify(r).toLowerCase().includes(q)));
- lista.innerHTML=data.map(r=>`<div class="card"><h3>${esc(r.titulo)}</h3>
- <p><span class="badge status">${esc(r.estado)}</span> <span class="badge priority-${esc(r.prioridad)}">${esc(r.prioridad)}</span></p>
- <p>${esc(r.descripcion)}</p><p class="small">${esc(r.creado_por_nombre)} · ${esc(r.categoria)} · ${esc(r.ubicacion?.facultad)} / ${esc(r.ubicacion?.bloque)} / ${esc(r.ubicacion?.aula)}</p>
- <p><b>Técnico:</b> ${esc(r.tecnico_nombre||"Sin asignar")}</p>
- <div class="actions">
- ${r.estado==="pendiente"?`<button onclick="estado('${r.id}','revisado')">Marcar revisado</button>`:""}
- ${r.estado==="revisado"?`<select id="tec-${r.id}"><option value="">Elegir técnico</option>${tecnicos.map(t=>`<option value="${t.id}">${esc(t.nombre)}</option>`).join("")}</select><button onclick="asignar('${r.id}')">Asignar</button>`:""}
- ${r.estado==="solucionado"?`<button onclick="estado('${r.id}','cerrado')">Cerrar</button><button class="secondary" onclick="estado('${r.id}','en_proceso')">Reabrir</button>`:""}
- ${["pendiente","revisado","asignado"].includes(r.estado)?`<button class="danger" onclick="estado('${r.id}','rechazado')">Rechazar</button>`:""}
- </div></div>`).join("")||'<div class="notice">No hay resultados.</div>';
+let todos = [];
+let tecnicos = [];
+
+function esc(s) {
+  return String(s ?? "").replace(
+    /[&<>"']/g,
+    m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[m])
+  );
 }
-async function estado(id,nuevo){const r=todos.find(x=>x.id===id);const nota=prompt("Nota del cambio:","")||"";try{await cambiarEstadoReporte(id,r,nuevo,nota,perfilActual.nombre);await iniciarPagina()}catch(e){alert(e.message)}}
-async function asignar(id){const r=todos.find(x=>x.id===id);const uid=document.getElementById("tec-"+id).value;if(!uid)return alert("Selecciona un técnico");const t=tecnicos.find(x=>x.id===uid);await asignarTecnico(id,r,t);await iniciarPagina()}
-fEstado.onchange=render;buscar.oninput=render;
-protegerPagina(["administrador"]);
-</script></body></html>
+
+function obtenerEstadoSLA(r) {
+  if (!r.vence_en?.toDate) {
+    return {
+      texto: "SIN SLA",
+      clase: "badge"
+    };
+  }
+
+  if (
+    r.estado === "cerrado" ||
+    r.estado === "solucionado"
+  ) {
+    return {
+      texto: "FINALIZADO",
+      clase: "badge status"
+    };
+  }
+
+  const vence = r.vence_en.toDate();
+  const ahora = new Date();
+  const diferencia = vence - ahora;
+
+  if (diferencia <= 0) {
+    return {
+      texto: "VENCIDO",
+      clase: "badge priority-urgente"
+    };
+  }
+
+  if (diferencia <= 60 * 60 * 1000) {
+    return {
+      texto: "PRÓXIMO A VENCER",
+      clase: "badge priority-media"
+    };
+  }
+
+  return {
+    texto: "A TIEMPO",
+    clase: "badge priority-baja"
+  };
+}
+
+async function iniciarPagina() {
+  try {
+    todos = await listarTodosReportes();
+    tecnicos = await listarTecnicos();
+
+    render();
+  } catch (error) {
+    console.error(error);
+
+    lista.innerHTML = `
+      <div class="notice error">
+        No se pudieron cargar los reportes.
+      </div>
+    `;
+  }
+}
+
+function render() {
+  const q = buscar.value.trim().toLowerCase();
+  const estadoSeleccionado = fEstado.value;
+
+  const data = todos.filter(r => {
+    const coincideEstado =
+      !estadoSeleccionado ||
+      r.estado === estadoSeleccionado;
+
+    const textoReporte = `
+      ${r.ticket || ""}
+      ${r.titulo || ""}
+      ${r.descripcion || ""}
+      ${r.categoria || ""}
+      ${r.prioridad || ""}
+      ${r.estado || ""}
+      ${r.creado_por_nombre || ""}
+      ${r.tecnico_nombre || ""}
+      ${r.ubicacion?.facultad || ""}
+      ${r.ubicacion?.bloque || ""}
+      ${r.ubicacion?.piso || ""}
+      ${r.ubicacion?.aula || ""}
+    `.toLowerCase();
+
+    const coincideBusqueda =
+      !q || textoReporte.includes(q);
+
+    return coincideEstado && coincideBusqueda;
+  });
+
+  if (!data.length) {
+    lista.innerHTML = `
+      <div class="notice">
+        No hay resultados.
+      </div>
+    `;
+    return;
+  }
+
+  lista.innerHTML = data
+    .map(r => {
+      const sla = obtenerEstadoSLA(r);
+
+      const fechaVence =
+        r.vence_en?.toDate
+          ? r.vence_en.toDate().toLocaleString()
+          : "Sin fecha";
+
+      return `
+        <div class="card">
+
+          <div
+            class="actions"
+            style="
+              justify-content: space-between;
+              align-items: flex-start;
+            "
+          >
+
+            <div>
+
+              <h3>${esc(r.titulo)}</h3>
+
+              <p>
+                <b>Ticket:</b>
+                ${esc(r.ticket || "Sin ticket")}
+              </p>
+
+              <p>
+                <span class="badge status">
+                  ${esc(r.estado)}
+                </span>
+
+                <span
+                  class="badge priority-${esc(r.prioridad)}"
+                >
+                  ${esc(r.prioridad)}
+                </span>
+
+                <span class="${sla.clase}">
+                  ${sla.texto}
+                </span>
+              </p>
+
+            </div>
+
+          </div>
+
+          <p>
+            ${esc(r.descripcion)}
+          </p>
+
+          <p class="small">
+            <b>Reportado por:</b>
+            ${esc(r.creado_por_nombre)}
+            ·
+            ${esc(r.categoria)}
+          </p>
+
+          <p class="small">
+            <b>Ubicación:</b>
+            ${esc(r.ubicacion?.facultad)}
+            /
+            ${esc(r.ubicacion?.bloque)}
+            /
+            piso ${esc(r.ubicacion?.piso)}
+            /
+            ${esc(r.ubicacion?.aula)}
+          </p>
+
+          <div class="grid">
+
+            <div>
+              <b>SLA:</b>
+              ${r.sla_horas || "-"} horas
+            </div>
+
+            <div>
+              <b>Vence:</b>
+              ${fechaVence}
+            </div>
+
+            <div>
+              <b>Técnico:</b>
+              ${esc(
+                r.tecnico_nombre ||
+                "Sin asignar"
+              )}
+            </div>
+
+          </div>
+
+          ${
+            r.evidencia_final_url
+              ? `
+                <div style="margin-top:16px">
+                  <b>Evidencia final:</b>
+                  <br>
+                  <img
+                    class="preview"
+                    src="${r.evidencia_final_url}"
+                    alt="Evidencia final del reporte"
+                  >
+                </div>
+              `
+              : ""
+          }
+
+          <div
+            class="actions"
+            style="margin-top:16px"
+          >
+
+            ${
+              r.estado === "pendiente"
+                ? `
+                  <button
+                    onclick="estado(
+                      '${r.id}',
+                      'revisado'
+                    )"
+                  >
+                    Marcar revisado
+                  </button>
+                `
+                : ""
+            }
+
+            ${
+              r.estado === "revisado"
+                ? `
+                  <select
+                    id="tec-${r.id}"
+                    style="max-width:300px"
+                  >
+
+                    <option value="">
+                      Elegir técnico
+                    </option>
+
+                    ${
+                      tecnicos
+                        .map(
+                          t => `
+                            <option
+                              value="${t.id}"
+                            >
+                              ${esc(t.nombre)}
+                            </option>
+                          `
+                        )
+                        .join("")
+                    }
+
+                  </select>
+
+                  <button
+                    onclick="asignar('${r.id}')"
+                  >
+                    Asignar
+                  </button>
+                `
+                : ""
+            }
+
+            ${
+              r.estado === "solucionado"
+                ? `
+                  <button
+                    onclick="estado(
+                      '${r.id}',
+                      'cerrado'
+                    )"
+                  >
+                    Cerrar
+                  </button>
+
+                  <button
+                    class="secondary"
+                    onclick="estado(
+                      '${r.id}',
+                      'en_proceso'
+                    )"
+                  >
+                    Reabrir
+                  </button>
+                `
+                : ""
+            }
+
+            ${
+              [
+                "pendiente",
+                "revisado",
+                "asignado"
+              ].includes(r.estado)
+                ? `
+                  <button
+                    class="danger"
+                    onclick="estado(
+                      '${r.id}',
+                      'rechazado'
+                    )"
+                  >
+                    Rechazar
+                  </button>
+                `
+                : ""
+            }
+
+          </div>
+
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function estado(id, nuevoEstado) {
+  const reporte = todos.find(
+    r => r.id === id
+  );
+
+  if (!reporte) {
+    alert("No se encontró el reporte.");
+    return;
+  }
+
+  const nota =
+    prompt(
+      "Nota del cambio:",
+      ""
+    ) || "";
+
+  try {
+    await cambiarEstadoReporte(
+      id,
+      reporte,
+      nuevoEstado,
+      nota,
+      perfilActual.nombre
+    );
+
+    await iniciarPagina();
+
+  } catch (error) {
+    console.error(error);
+    alert(error.message);
+  }
+}
+
+async function asignar(id) {
+  const reporte = todos.find(
+    r => r.id === id
+  );
+
+  if (!reporte) {
+    alert("No se encontró el reporte.");
+    return;
+  }
+
+  const selector =
+    document.getElementById(
+      "tec-" + id
+    );
+
+  const uid = selector.value;
+
+  if (!uid) {
+    alert(
+      "Selecciona un técnico."
+    );
+    return;
+  }
+
+  const tecnico = tecnicos.find(
+    t => t.id === uid
+  );
+
+  if (!tecnico) {
+    alert(
+      "No se encontró el técnico."
+    );
+    return;
+  }
+
+  try {
+    await asignarTecnico(
+      id,
+      reporte,
+      tecnico
+    );
+
+    await iniciarPagina();
+
+  } catch (error) {
+    console.error(error);
+
+    alert(
+      "No se pudo asignar el técnico."
+    );
+  }
+}
+
+fEstado.addEventListener(
+  "change",
+  render
+);
+
+buscar.addEventListener(
+  "input",
+  render
+);
+
+protegerPagina([
+  "administrador"
+]);
+</script>
+
+</body>
+</html>
