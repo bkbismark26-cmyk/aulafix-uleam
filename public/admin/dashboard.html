@@ -1,25 +1,915 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Dashboard</title><link rel="stylesheet" href="/css/style.css"></head><body><header><strong>AulaFix · Administración</strong><nav>
-<a href="/admin/dashboard.html">Dashboard</a><a href="/admin/reportes.html">Reportes</a><a href="/admin/usuarios.html">Usuarios</a>
-<span data-user-name></span><a href="#" onclick="cerrarSesion()">Salir</a></nav></header>
-<div class="container"><h1>Dashboard</h1><div id="metricas" class="grid"></div><div class="card"><h2>Reportes recientes</h2><div id="recientes"></div></div></div>
+<!doctype html>
+<html lang="es">
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<head>
+  <meta charset="utf-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Dashboard - AulaFix ULEAM</title>
+
+  <link
+    rel="stylesheet"
+    href="/css/style.css"
+  >
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+<header>
+  <strong>AulaFix · Administración</strong>
+
+  <nav>
+    <a href="/admin/dashboard.html">
+      Dashboard
+    </a>
+
+    <a href="/admin/reportes.html">
+      Reportes
+    </a>
+
+    <a href="/admin/usuarios.html">
+      Usuarios
+    </a>
+
+    <span data-user-name></span>
+
+    <a
+      href="#"
+      onclick="cerrarSesion()"
+    >
+      Salir
+    </a>
+  </nav>
+</header>
+
+
+<div class="container">
+
+  <h1>Dashboard</h1>
+
+  <p class="small">
+    Resumen general del sistema de incidencias AulaFix ULEAM.
+  </p>
+
+
+  <!-- ===================== -->
+  <!-- MÉTRICAS PRINCIPALES -->
+  <!-- ===================== -->
+
+  <div
+    id="metricas"
+    class="grid"
+  >
+    Cargando métricas...
+  </div>
+
+
+  <!-- ===================== -->
+  <!-- GRÁFICOS -->
+  <!-- ===================== -->
+
+  <div class="grid">
+
+    <div class="card">
+
+      <h2>
+        Reportes por estado
+      </h2>
+
+      <canvas
+        id="graficoEstados"
+        height="230"
+      ></canvas>
+
+    </div>
+
+
+    <div class="card">
+
+      <h2>
+        Reportes por prioridad
+      </h2>
+
+      <canvas
+        id="graficoPrioridad"
+        height="230"
+      ></canvas>
+
+    </div>
+
+  </div>
+
+
+  <!-- ===================== -->
+  <!-- CATEGORÍAS -->
+  <!-- ===================== -->
+
+  <div class="card">
+
+    <h2>
+      Reportes por categoría
+    </h2>
+
+    <div id="categorias">
+      Cargando...
+    </div>
+
+  </div>
+
+
+  <!-- ===================== -->
+  <!-- REPORTES RECIENTES -->
+  <!-- ===================== -->
+
+  <div class="card">
+
+    <h2>
+      Reportes recientes
+    </h2>
+
+    <div id="recientes">
+      Cargando...
+    </div>
+
+  </div>
+
+</div>
+
+
+<!-- FIREBASE -->
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
+></script>
+
+
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
 <script src="/js/upload.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/db.js"></script>
 
+
 <script>
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
-async function iniciarPagina(){
- const data=await listarTodosReportes();
- const c={total:data.length,pendiente:0,en_proceso:0,solucionado:0,cerrado:0};
- data.forEach(r=>{if(c[r.estado]!==undefined)c[r.estado]++});
- metricas.innerHTML=Object.entries(c).map(([k,v])=>`<div class="card"><div class="small">${k.replace("_"," ")}</div><div class="metric">${v}</div></div>`).join("");
- recientes.innerHTML=data.slice(0,8).map(r=>`<p><a href="/admin/reportes.html?id=${r.id}">${esc(r.titulo)}</a> · <span class="badge status">${esc(r.estado)}</span></p>`).join("")||"Sin reportes";
+
+let chartEstados = null;
+let chartPrioridad = null;
+
+
+/* =========================
+   ESCAPAR TEXTO
+========================= */
+
+function esc(s) {
+
+  return String(s ?? "").replace(
+    /[&<>"']/g,
+    m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    }[m])
+  );
+
 }
-protegerPagina(["administrador"]);
-</script></body></html>
+
+
+/* =========================
+   COMPROBAR SLA
+========================= */
+
+function estaVencido(reporte) {
+
+  if (!reporte.vence_en?.toDate) {
+    return false;
+  }
+
+  if (
+    reporte.estado === "cerrado" ||
+    reporte.estado === "solucionado" ||
+    reporte.estado === "rechazado"
+  ) {
+    return false;
+  }
+
+  const vence =
+    reporte.vence_en.toDate();
+
+  return vence < new Date();
+}
+
+
+/* =========================
+   ESTADO SLA
+========================= */
+
+function obtenerEstadoSLA(reporte) {
+
+  if (!reporte.vence_en?.toDate) {
+
+    return {
+      texto: "SIN SLA",
+      clase: "badge"
+    };
+
+  }
+
+  if (
+    reporte.estado === "cerrado" ||
+    reporte.estado === "solucionado"
+  ) {
+
+    return {
+      texto: "FINALIZADO",
+      clase: "badge status"
+    };
+
+  }
+
+  const diferencia =
+    reporte.vence_en.toDate() -
+    new Date();
+
+
+  if (diferencia <= 0) {
+
+    return {
+      texto: "VENCIDO",
+      clase: "badge priority-urgente"
+    };
+
+  }
+
+
+  if (
+    diferencia <=
+    60 * 60 * 1000
+  ) {
+
+    return {
+      texto: "PRÓXIMO A VENCER",
+      clase: "badge priority-media"
+    };
+
+  }
+
+
+  return {
+    texto: "A TIEMPO",
+    clase: "badge priority-baja"
+  };
+
+}
+
+
+/* =========================
+   INICIAR DASHBOARD
+========================= */
+
+async function iniciarPagina() {
+
+  try {
+
+    const data =
+      await listarTodosReportes();
+
+
+    /* =========================
+       CONTADORES
+    ========================= */
+
+    const contador = {
+
+      total:
+        data.length,
+
+      pendiente: 0,
+
+      revisado: 0,
+
+      asignado: 0,
+
+      en_proceso: 0,
+
+      solucionado: 0,
+
+      cerrado: 0,
+
+      rechazado: 0,
+
+      vencido: 0
+
+    };
+
+
+    data.forEach(
+      reporte => {
+
+        if (
+          contador[
+            reporte.estado
+          ] !== undefined
+        ) {
+
+          contador[
+            reporte.estado
+          ]++;
+
+        }
+
+        if (
+          estaVencido(
+            reporte
+          )
+        ) {
+
+          contador.vencido++;
+
+        }
+
+      }
+    );
+
+
+    /* =========================
+       CUMPLIMIENTO SLA
+    ========================= */
+
+    const reportesConSLA =
+      data.filter(
+        r =>
+          r.vence_en?.toDate
+      );
+
+
+    const noVencidos =
+      reportesConSLA.filter(
+        r =>
+          !estaVencido(r)
+      );
+
+
+    const porcentajeSLA =
+      reportesConSLA.length
+        ? Math.round(
+            (
+              noVencidos.length /
+              reportesConSLA.length
+            ) * 100
+          )
+        : 100;
+
+
+    /* =========================
+       TARJETAS
+    ========================= */
+
+    metricas.innerHTML = `
+
+      <div class="card">
+
+        <div class="small">
+          Total
+        </div>
+
+        <div class="metric">
+          ${contador.total}
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="small">
+          Pendientes
+        </div>
+
+        <div class="metric">
+          ${contador.pendiente}
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="small">
+          En proceso
+        </div>
+
+        <div class="metric">
+          ${contador.en_proceso}
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="small">
+          Solucionados
+        </div>
+
+        <div class="metric">
+          ${contador.solucionado}
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="small">
+          Cerrados
+        </div>
+
+        <div class="metric">
+          ${contador.cerrado}
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="small">
+          Vencidos
+        </div>
+
+        <div class="metric">
+          ${contador.vencido}
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="small">
+          Cumplimiento SLA
+        </div>
+
+        <div class="metric">
+          ${porcentajeSLA}%
+        </div>
+
+      </div>
+
+    `;
+
+
+    /* =========================
+       PRIORIDADES
+    ========================= */
+
+    const prioridades = {
+
+      baja: 0,
+
+      media: 0,
+
+      alta: 0,
+
+      urgente: 0
+
+    };
+
+
+    data.forEach(
+      r => {
+
+        if (
+          prioridades[
+            r.prioridad
+          ] !== undefined
+        ) {
+
+          prioridades[
+            r.prioridad
+          ]++;
+
+        }
+
+      }
+    );
+
+
+    /* =========================
+       GRÁFICO ESTADOS
+    ========================= */
+
+    const ctxEstados =
+      document.getElementById(
+        "graficoEstados"
+      );
+
+
+    if (chartEstados) {
+
+      chartEstados.destroy();
+
+    }
+
+
+    chartEstados =
+      new Chart(
+        ctxEstados,
+        {
+
+          type: "doughnut",
+
+          data: {
+
+            labels: [
+              "Pendiente",
+              "Revisado",
+              "Asignado",
+              "En proceso",
+              "Solucionado",
+              "Cerrado",
+              "Rechazado"
+            ],
+
+            datasets: [
+
+              {
+
+                data: [
+
+                  contador.pendiente,
+
+                  contador.revisado,
+
+                  contador.asignado,
+
+                  contador.en_proceso,
+
+                  contador.solucionado,
+
+                  contador.cerrado,
+
+                  contador.rechazado
+
+                ]
+
+              }
+
+            ]
+
+          },
+
+          options: {
+
+            responsive: true,
+
+            plugins: {
+
+              legend: {
+
+                position: "bottom"
+
+              }
+
+            }
+
+          }
+
+        }
+      );
+
+
+    /* =========================
+       GRÁFICO PRIORIDAD
+    ========================= */
+
+    const ctxPrioridad =
+      document.getElementById(
+        "graficoPrioridad"
+      );
+
+
+    if (chartPrioridad) {
+
+      chartPrioridad.destroy();
+
+    }
+
+
+    chartPrioridad =
+      new Chart(
+        ctxPrioridad,
+        {
+
+          type: "bar",
+
+          data: {
+
+            labels: [
+              "Baja",
+              "Media",
+              "Alta",
+              "Urgente"
+            ],
+
+            datasets: [
+
+              {
+
+                label:
+                  "Cantidad de reportes",
+
+                data: [
+
+                  prioridades.baja,
+
+                  prioridades.media,
+
+                  prioridades.alta,
+
+                  prioridades.urgente
+
+                ]
+
+              }
+
+            ]
+
+          },
+
+          options: {
+
+            responsive: true,
+
+            scales: {
+
+              y: {
+
+                beginAtZero: true,
+
+                ticks: {
+
+                  precision: 0
+
+                }
+
+              }
+
+            }
+
+          }
+
+        }
+      );
+
+
+    /* =========================
+       CATEGORÍAS
+    ========================= */
+
+    const conteoCategorias = {};
+
+
+    data.forEach(
+      r => {
+
+        const categoria =
+          r.categoria ||
+          "Sin categoría";
+
+        conteoCategorias[
+          categoria
+        ] =
+          (
+            conteoCategorias[
+              categoria
+            ] || 0
+          ) + 1;
+
+      }
+    );
+
+
+    const categoriasOrdenadas =
+      Object.entries(
+        conteoCategorias
+      )
+      .sort(
+        (a, b) =>
+          b[1] - a[1]
+      );
+
+
+    if (
+      categoriasOrdenadas.length
+    ) {
+
+      categorias.innerHTML = `
+        <table>
+
+          <thead>
+
+            <tr>
+              <th>Categoría</th>
+              <th>Cantidad</th>
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            ${
+              categoriasOrdenadas
+                .map(
+                  ([nombre, cantidad]) => `
+                    <tr>
+
+                      <td>
+                        ${esc(nombre)}
+                      </td>
+
+                      <td>
+                        ${cantidad}
+                      </td>
+
+                    </tr>
+                  `
+                )
+                .join("")
+            }
+
+          </tbody>
+
+        </table>
+      `;
+
+    } else {
+
+      categorias.innerHTML =
+        '<p class="small">Sin información.</p>';
+
+    }
+
+
+    /* =========================
+       REPORTES RECIENTES
+    ========================= */
+
+    const ultimos =
+      data.slice(
+        0,
+        8
+      );
+
+
+    if (!ultimos.length) {
+
+      recientes.innerHTML =
+        '<p class="small">Sin reportes.</p>';
+
+      return;
+
+    }
+
+
+    recientes.innerHTML =
+      ultimos
+        .map(
+          r => {
+
+            const sla =
+              obtenerEstadoSLA(r);
+
+            return `
+
+              <div
+                style="
+                  padding:12px 0;
+                  border-bottom:
+                  1px solid #e5e7eb;
+                "
+              >
+
+                <div
+                  class="actions"
+                  style="
+                    justify-content:
+                    space-between;
+                  "
+                >
+
+                  <div>
+
+                    <b>
+                      ${esc(r.titulo)}
+                    </b>
+
+                    <div class="small">
+
+                      ${esc(
+                        r.ticket ||
+                        "Sin ticket"
+                      )}
+
+                      ·
+
+                      ${esc(
+                        r.creado_por_nombre ||
+                        ""
+                      )}
+
+                    </div>
+
+                  </div>
+
+
+                  <div>
+
+                    <span
+                      class="badge status"
+                    >
+                      ${esc(r.estado)}
+                    </span>
+
+                    <span
+                      class="
+                      badge
+                      priority-${esc(
+                        r.prioridad
+                      )}
+                      "
+                    >
+                      ${esc(
+                        r.prioridad
+                      )}
+                    </span>
+
+                    <span
+                      class="${sla.clase}"
+                    >
+                      ${sla.texto}
+                    </span>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            `;
+
+          }
+        )
+        .join("");
+
+
+  } catch (error) {
+
+    console.error(
+      "Error cargando dashboard:",
+      error
+    );
+
+
+    metricas.innerHTML = `
+      <div class="notice error">
+        No se pudieron cargar
+        las estadísticas.
+      </div>
+    `;
+
+  }
+
+}
+
+
+/* =========================
+   PROTEGER PANEL
+========================= */
+
+protegerPagina([
+  "administrador"
+]);
+
+</script>
+
+</body>
+
+</html>
