@@ -11,13 +11,31 @@
 
   <title>Dashboard - AulaFix ULEAM</title>
 
-  <link
-    rel="stylesheet"
-    href="/css/style.css"
-  >
+  <link rel="stylesheet" href="/css/style.css">
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    .chart-box {
+      position: relative;
+      height: 320px;
+    }
+
+    .metric-sub {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .ranking-table {
+      overflow-x: auto;
+    }
+
+    .ranking-table table {
+      min-width: 700px;
+    }
+  </style>
 </head>
 
 <body>
@@ -40,10 +58,7 @@
 
     <span data-user-name></span>
 
-    <a
-      href="#"
-      onclick="cerrarSesion()"
-    >
+    <a href="#" onclick="cerrarSesion()">
       Salir
     </a>
   </nav>
@@ -59,9 +74,7 @@
   </p>
 
 
-  <!-- ===================== -->
-  <!-- MÉTRICAS PRINCIPALES -->
-  <!-- ===================== -->
+  <!-- MÉTRICAS -->
 
   <div
     id="metricas"
@@ -71,51 +84,63 @@
   </div>
 
 
-  <!-- ===================== -->
   <!-- GRÁFICOS -->
-  <!-- ===================== -->
 
   <div class="grid">
 
     <div class="card">
 
-      <h2>
-        Reportes por estado
-      </h2>
+      <h2>Reportes por estado</h2>
 
-      <canvas
-        id="graficoEstados"
-        height="230"
-      ></canvas>
+      <div class="chart-box">
+
+        <canvas id="graficoEstados"></canvas>
+
+      </div>
 
     </div>
 
 
     <div class="card">
 
-      <h2>
-        Reportes por prioridad
-      </h2>
+      <h2>Reportes por prioridad</h2>
 
-      <canvas
-        id="graficoPrioridad"
-        height="230"
-      ></canvas>
+      <div class="chart-box">
+
+        <canvas id="graficoPrioridad"></canvas>
+
+      </div>
 
     </div>
 
   </div>
 
 
-  <!-- ===================== -->
-  <!-- CATEGORÍAS -->
-  <!-- ===================== -->
+  <!-- RENDIMIENTO -->
 
   <div class="card">
 
-    <h2>
-      Reportes por categoría
-    </h2>
+    <h2>Rendimiento de técnicos</h2>
+
+    <p class="small">
+      Resumen de incidencias asignadas y finalizadas por cada técnico.
+    </p>
+
+    <div
+      id="rendimientoTecnicos"
+      class="ranking-table"
+    >
+      Cargando...
+    </div>
+
+  </div>
+
+
+  <!-- CATEGORÍAS -->
+
+  <div class="card">
+
+    <h2>Reportes por categoría</h2>
 
     <div id="categorias">
       Cargando...
@@ -124,15 +149,11 @@
   </div>
 
 
-  <!-- ===================== -->
-  <!-- REPORTES RECIENTES -->
-  <!-- ===================== -->
+  <!-- RECIENTES -->
 
   <div class="card">
 
-    <h2>
-      Reportes recientes
-    </h2>
+    <h2>Reportes recientes</h2>
 
     <div id="recientes">
       Cargando...
@@ -145,23 +166,20 @@
 
 <!-- FIREBASE -->
 
-<script
-  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
-></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 
-<script
-  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
-></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 
-<script
-  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
-></script>
-
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 
 <script src="/js/firebase-config.js"></script>
+
 <script src="/js/cloudinary-config.js"></script>
+
 <script src="/js/upload.js"></script>
+
 <script src="/js/auth.js"></script>
+
 <script src="/js/db.js"></script>
 
 
@@ -171,9 +189,9 @@ let chartEstados = null;
 let chartPrioridad = null;
 
 
-/* =========================
+/* ==================================
    ESCAPAR TEXTO
-========================= */
+================================== */
 
 function esc(s) {
 
@@ -191,9 +209,32 @@ function esc(s) {
 }
 
 
-/* =========================
-   COMPROBAR SLA
-========================= */
+/* ==================================
+   FIRESTORE TIMESTAMP -> DATE
+================================== */
+
+function convertirFecha(valor) {
+
+  if (!valor) {
+    return null;
+  }
+
+  if (valor.toDate) {
+    return valor.toDate();
+  }
+
+  const fecha = new Date(valor);
+
+  return isNaN(fecha.getTime())
+    ? null
+    : fecha;
+
+}
+
+
+/* ==================================
+   SLA VENCIDO
+================================== */
 
 function estaVencido(reporte) {
 
@@ -209,16 +250,17 @@ function estaVencido(reporte) {
     return false;
   }
 
-  const vence =
-    reporte.vence_en.toDate();
+  return (
+    reporte.vence_en.toDate() <
+    new Date()
+  );
 
-  return vence < new Date();
 }
 
 
-/* =========================
-   ESTADO SLA
-========================= */
+/* ==================================
+   ESTADO DEL SLA
+================================== */
 
 function obtenerEstadoSLA(reporte) {
 
@@ -239,6 +281,17 @@ function obtenerEstadoSLA(reporte) {
     return {
       texto: "FINALIZADO",
       clase: "badge status"
+    };
+
+  }
+
+  if (
+    reporte.estado === "rechazado"
+  ) {
+
+    return {
+      texto: "RECHAZADO",
+      clase: "badge"
     };
 
   }
@@ -279,9 +332,137 @@ function obtenerEstadoSLA(reporte) {
 }
 
 
-/* =========================
-   INICIAR DASHBOARD
-========================= */
+/* ==================================
+   OBTENER FECHA DE RESOLUCIÓN
+================================== */
+
+function obtenerFechaResolucion(reporte) {
+
+  const historial =
+    reporte.historial || [];
+
+  const solucion =
+    historial.find(
+      h =>
+        h.estado === "solucionado"
+    );
+
+  if (solucion) {
+
+    return convertirFecha(
+      solucion.fecha
+    );
+
+  }
+
+  const cierre =
+    historial.find(
+      h =>
+        h.estado === "cerrado"
+    );
+
+  if (cierre) {
+
+    return convertirFecha(
+      cierre.fecha
+    );
+
+  }
+
+  return null;
+
+}
+
+
+/* ==================================
+   TIEMPO DE RESOLUCIÓN
+================================== */
+
+function calcularTiempoResolucion(reporte) {
+
+  const inicio =
+    convertirFecha(
+      reporte.creado_en
+    );
+
+  const fin =
+    obtenerFechaResolucion(
+      reporte
+    );
+
+  if (!inicio || !fin) {
+    return null;
+  }
+
+  const diferencia =
+    fin - inicio;
+
+  if (diferencia < 0) {
+    return null;
+  }
+
+  return diferencia;
+
+}
+
+
+/* ==================================
+   FORMATEAR DURACIÓN
+================================== */
+
+function formatearDuracion(ms) {
+
+  if (
+    ms === null ||
+    ms === undefined
+  ) {
+    return "-";
+  }
+
+  const minutos =
+    Math.round(
+      ms / 60000
+    );
+
+  const dias =
+    Math.floor(
+      minutos / 1440
+    );
+
+  const horas =
+    Math.floor(
+      (
+        minutos %
+        1440
+      ) / 60
+    );
+
+  const mins =
+    minutos % 60;
+
+
+  if (dias > 0) {
+
+    return `${dias} d ${horas} h`;
+
+  }
+
+
+  if (horas > 0) {
+
+    return `${horas} h ${mins} min`;
+
+  }
+
+
+  return `${mins} min`;
+
+}
+
+
+/* ==================================
+   DASHBOARD
+================================== */
 
 async function iniciarPagina() {
 
@@ -291,14 +472,13 @@ async function iniciarPagina() {
       await listarTodosReportes();
 
 
-    /* =========================
+    /* ==============================
        CONTADORES
-    ========================= */
+    ============================== */
 
     const contador = {
 
-      total:
-        data.length,
+      total: data.length,
 
       pendiente: 0,
 
@@ -334,6 +514,7 @@ async function iniciarPagina() {
 
         }
 
+
         if (
           estaVencido(
             reporte
@@ -348,9 +529,9 @@ async function iniciarPagina() {
     );
 
 
-    /* =========================
-       CUMPLIMIENTO SLA
-    ========================= */
+    /* ==============================
+       SLA
+    ============================== */
 
     const reportesConSLA =
       data.filter(
@@ -359,7 +540,7 @@ async function iniciarPagina() {
       );
 
 
-    const noVencidos =
+    const reportesCumplenSLA =
       reportesConSLA.filter(
         r =>
           !estaVencido(r)
@@ -370,16 +551,55 @@ async function iniciarPagina() {
       reportesConSLA.length
         ? Math.round(
             (
-              noVencidos.length /
+              reportesCumplenSLA.length /
               reportesConSLA.length
             ) * 100
           )
         : 100;
 
 
-    /* =========================
+    /* ==============================
+       TIEMPO PROMEDIO
+    ============================== */
+
+    const tiemposResolucion =
+      data
+        .map(
+          calcularTiempoResolucion
+        )
+        .filter(
+          tiempo =>
+            tiempo !== null
+        );
+
+
+    const promedioResolucion =
+      tiemposResolucion.length
+        ? tiemposResolucion.reduce(
+            (a, b) => a + b,
+            0
+          ) /
+          tiemposResolucion.length
+        : null;
+
+
+    const tecnicosActivos =
+      new Set(
+        data
+          .filter(
+            r =>
+              r.tecnico_id
+          )
+          .map(
+            r =>
+              r.tecnico_id
+          )
+      ).size;
+
+
+    /* ==============================
        TARJETAS
-    ========================= */
+    ============================== */
 
     metricas.innerHTML = `
 
@@ -473,12 +693,44 @@ async function iniciarPagina() {
 
       </div>
 
+
+      <div class="card">
+
+        <div class="small">
+          Tiempo promedio
+        </div>
+
+        <div class="metric">
+          ${formatearDuracion(
+            promedioResolucion
+          )}
+        </div>
+
+        <div class="metric-sub">
+          creación → solución
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="small">
+          Técnicos con tareas
+        </div>
+
+        <div class="metric">
+          ${tecnicosActivos}
+        </div>
+
+      </div>
+
     `;
 
 
-    /* =========================
+    /* ==============================
        PRIORIDADES
-    ========================= */
+    ============================== */
 
     const prioridades = {
 
@@ -512,15 +764,9 @@ async function iniciarPagina() {
     );
 
 
-    /* =========================
+    /* ==============================
        GRÁFICO ESTADOS
-    ========================= */
-
-    const ctxEstados =
-      document.getElementById(
-        "graficoEstados"
-      );
-
+    ============================== */
 
     if (chartEstados) {
 
@@ -531,7 +777,9 @@ async function iniciarPagina() {
 
     chartEstados =
       new Chart(
-        ctxEstados,
+        document.getElementById(
+          "graficoEstados"
+        ),
         {
 
           type: "doughnut",
@@ -580,6 +828,8 @@ async function iniciarPagina() {
 
             responsive: true,
 
+            maintainAspectRatio: false,
+
             plugins: {
 
               legend: {
@@ -596,15 +846,9 @@ async function iniciarPagina() {
       );
 
 
-    /* =========================
+    /* ==============================
        GRÁFICO PRIORIDAD
-    ========================= */
-
-    const ctxPrioridad =
-      document.getElementById(
-        "graficoPrioridad"
-      );
-
+    ============================== */
 
     if (chartPrioridad) {
 
@@ -615,7 +859,9 @@ async function iniciarPagina() {
 
     chartPrioridad =
       new Chart(
-        ctxPrioridad,
+        document.getElementById(
+          "graficoPrioridad"
+        ),
         {
 
           type: "bar",
@@ -658,6 +904,8 @@ async function iniciarPagina() {
 
             responsive: true,
 
+            maintainAspectRatio: false,
+
             scales: {
 
               y: {
@@ -680,19 +928,256 @@ async function iniciarPagina() {
       );
 
 
-    /* =========================
+    /* ==============================
+       RENDIMIENTO TÉCNICOS
+    ============================== */
+
+    const tecnicos = {};
+
+
+    data.forEach(
+      reporte => {
+
+        if (
+          !reporte.tecnico_id
+        ) {
+          return;
+        }
+
+
+        const id =
+          reporte.tecnico_id;
+
+
+        if (!tecnicos[id]) {
+
+          tecnicos[id] = {
+
+            nombre:
+              reporte.tecnico_nombre ||
+              "Técnico",
+
+            asignados: 0,
+
+            activos: 0,
+
+            solucionados: 0,
+
+            cerrados: 0,
+
+            tiempos: []
+
+          };
+
+        }
+
+
+        const tecnico =
+          tecnicos[id];
+
+
+        tecnico.asignados++;
+
+
+        if (
+          [
+            "asignado",
+            "en_proceso"
+          ].includes(
+            reporte.estado
+          )
+        ) {
+
+          tecnico.activos++;
+
+        }
+
+
+        if (
+          reporte.estado ===
+          "solucionado"
+        ) {
+
+          tecnico.solucionados++;
+
+        }
+
+
+        if (
+          reporte.estado ===
+          "cerrado"
+        ) {
+
+          tecnico.cerrados++;
+
+        }
+
+
+        const tiempo =
+          calcularTiempoResolucion(
+            reporte
+          );
+
+
+        if (tiempo !== null) {
+
+          tecnico.tiempos.push(
+            tiempo
+          );
+
+        }
+
+      }
+    );
+
+
+    const listaTecnicos =
+      Object.values(
+        tecnicos
+      )
+      .sort(
+        (a, b) =>
+          b.cerrados -
+          a.cerrados
+      );
+
+
+    if (
+      listaTecnicos.length
+    ) {
+
+      rendimientoTecnicos.innerHTML = `
+
+        <table>
+
+          <thead>
+
+            <tr>
+
+              <th>
+                Técnico
+              </th>
+
+              <th>
+                Asignados
+              </th>
+
+              <th>
+                Activos
+              </th>
+
+              <th>
+                Solucionados
+              </th>
+
+              <th>
+                Cerrados
+              </th>
+
+              <th>
+                Tiempo promedio
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+            ${
+              listaTecnicos
+                .map(
+                  tecnico => {
+
+                    const promedio =
+                      tecnico.tiempos.length
+
+                        ? tecnico.tiempos.reduce(
+                            (a, b) =>
+                              a + b,
+                            0
+                          ) /
+                          tecnico.tiempos.length
+
+                        : null;
+
+
+                    return `
+
+                      <tr>
+
+                        <td>
+                          <b>
+                            ${esc(
+                              tecnico.nombre
+                            )}
+                          </b>
+                        </td>
+
+                        <td>
+                          ${tecnico.asignados}
+                        </td>
+
+                        <td>
+                          ${tecnico.activos}
+                        </td>
+
+                        <td>
+                          ${tecnico.solucionados}
+                        </td>
+
+                        <td>
+                          ${tecnico.cerrados}
+                        </td>
+
+                        <td>
+                          ${formatearDuracion(
+                            promedio
+                          )}
+                        </td>
+
+                      </tr>
+
+                    `;
+
+                  }
+                )
+                .join("")
+            }
+
+          </tbody>
+
+        </table>
+
+      `;
+
+    } else {
+
+      rendimientoTecnicos.innerHTML = `
+        <p class="small">
+          Todavía no existen
+          reportes asignados a técnicos.
+        </p>
+      `;
+
+    }
+
+
+    /* ==============================
        CATEGORÍAS
-    ========================= */
+    ============================== */
 
     const conteoCategorias = {};
 
 
     data.forEach(
-      r => {
+      reporte => {
 
         const categoria =
-          r.categoria ||
+          reporte.categoria ||
           "Sin categoría";
+
 
         conteoCategorias[
           categoria
@@ -717,60 +1202,74 @@ async function iniciarPagina() {
       );
 
 
-    if (
+    categorias.innerHTML =
       categoriasOrdenadas.length
-    ) {
 
-      categorias.innerHTML = `
-        <table>
+        ? `
 
-          <thead>
+          <table>
 
-            <tr>
-              <th>Categoría</th>
-              <th>Cantidad</th>
-            </tr>
+            <thead>
 
-          </thead>
+              <tr>
 
-          <tbody>
+                <th>
+                  Categoría
+                </th>
 
-            ${
-              categoriasOrdenadas
-                .map(
-                  ([nombre, cantidad]) => `
-                    <tr>
+                <th>
+                  Cantidad
+                </th>
 
-                      <td>
-                        ${esc(nombre)}
-                      </td>
+              </tr>
 
-                      <td>
-                        ${cantidad}
-                      </td>
+            </thead>
 
-                    </tr>
-                  `
-                )
-                .join("")
-            }
+            <tbody>
 
-          </tbody>
+              ${
+                categoriasOrdenadas
+                  .map(
+                    ([
+                      nombre,
+                      cantidad
+                    ]) => `
 
-        </table>
-      `;
+                      <tr>
 
-    } else {
+                        <td>
+                          ${esc(nombre)}
+                        </td>
 
-      categorias.innerHTML =
-        '<p class="small">Sin información.</p>';
+                        <td>
+                          ${cantidad}
+                        </td>
 
-    }
+                      </tr>
+
+                    `
+                  )
+                  .join("")
+              }
+
+            </tbody>
+
+          </table>
+
+        `
+
+        : `
+
+          <p class="small">
+            Sin información.
+          </p>
+
+        `;
 
 
-    /* =========================
-       REPORTES RECIENTES
-    ========================= */
+    /* ==============================
+       RECIENTES
+    ============================== */
 
     const ultimos =
       data.slice(
@@ -779,105 +1278,122 @@ async function iniciarPagina() {
       );
 
 
-    if (!ultimos.length) {
-
-      recientes.innerHTML =
-        '<p class="small">Sin reportes.</p>';
-
-      return;
-
-    }
-
-
     recientes.innerHTML =
-      ultimos
-        .map(
-          r => {
+      ultimos.length
 
-            const sla =
-              obtenerEstadoSLA(r);
+        ? ultimos
+            .map(
+              reporte => {
 
-            return `
+                const sla =
+                  obtenerEstadoSLA(
+                    reporte
+                  );
 
-              <div
-                style="
-                  padding:12px 0;
-                  border-bottom:
-                  1px solid #e5e7eb;
-                "
-              >
 
-                <div
-                  class="actions"
-                  style="
-                    justify-content:
-                    space-between;
-                  "
-                >
+                return `
 
-                  <div>
+                  <div
+                    style="
+                      padding: 14px 0;
+                      border-bottom:
+                      1px solid #e5e7eb;
+                    "
+                  >
 
-                    <b>
-                      ${esc(r.titulo)}
-                    </b>
+                    <div
+                      class="actions"
+                      style="
+                        justify-content:
+                        space-between;
+                      "
+                    >
 
-                    <div class="small">
+                      <div>
 
-                      ${esc(
-                        r.ticket ||
-                        "Sin ticket"
-                      )}
+                        <b>
+                          ${esc(
+                            reporte.titulo
+                          )}
+                        </b>
 
-                      ·
+                        <div
+                          class="small"
+                        >
 
-                      ${esc(
-                        r.creado_por_nombre ||
-                        ""
-                      )}
+                          ${esc(
+                            reporte.ticket ||
+                            "Sin ticket"
+                          )}
+
+                          ·
+
+                          ${esc(
+                            reporte.creado_por_nombre ||
+                            ""
+                          )}
+
+                        </div>
+
+                      </div>
+
+
+                      <div>
+
+                        <span
+                          class="badge status"
+                        >
+
+                          ${esc(
+                            reporte.estado
+                          )}
+
+                        </span>
+
+
+                        <span
+                          class="
+                          badge
+                          priority-${esc(
+                            reporte.prioridad
+                          )}
+                          "
+                        >
+
+                          ${esc(
+                            reporte.prioridad
+                          )}
+
+                        </span>
+
+
+                        <span
+                          class="${sla.clase}"
+                        >
+
+                          ${sla.texto}
+
+                        </span>
+
+                      </div>
 
                     </div>
 
                   </div>
 
+                `;
 
-                  <div>
+              }
+            )
+            .join("")
 
-                    <span
-                      class="badge status"
-                    >
-                      ${esc(r.estado)}
-                    </span>
+        : `
 
-                    <span
-                      class="
-                      badge
-                      priority-${esc(
-                        r.prioridad
-                      )}
-                      "
-                    >
-                      ${esc(
-                        r.prioridad
-                      )}
-                    </span>
+          <p class="small">
+            Sin reportes.
+          </p>
 
-                    <span
-                      class="${sla.clase}"
-                    >
-                      ${sla.texto}
-                    </span>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            `;
-
-          }
-        )
-        .join("");
+        `;
 
 
   } catch (error) {
@@ -889,10 +1405,14 @@ async function iniciarPagina() {
 
 
     metricas.innerHTML = `
+
       <div class="notice error">
+
         No se pudieron cargar
         las estadísticas.
+
       </div>
+
     `;
 
   }
@@ -900,9 +1420,9 @@ async function iniciarPagina() {
 }
 
 
-/* =========================
-   PROTEGER PANEL
-========================= */
+/* ==================================
+   PROTEGER DASHBOARD
+================================== */
 
 protegerPagina([
   "administrador"
