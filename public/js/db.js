@@ -30,6 +30,7 @@ function timestampAhora() {
 
 
 function obtenerHorasSLA(prioridad) {
+
   const sla = {
     urgente: 2,
     alta: 6,
@@ -41,23 +42,8 @@ function obtenerHorasSLA(prioridad) {
 }
 
 
-function generarTicket() {
-  const ahora =
-    new Date();
-
-  const anio =
-    ahora.getFullYear();
-
-  const timestamp =
-    Date.now()
-      .toString()
-      .slice(-6);
-
-  return `AF-${anio}-${timestamp}`;
-}
-
-
 function calcularFechaVencimiento(prioridad) {
+
   const horas =
     obtenerHorasSLA(prioridad);
 
@@ -85,6 +71,7 @@ async function crearNotificacion({
   tipo = "info",
   reporte_id = null
 }) {
+
   if (!usuario_id) {
     return;
   }
@@ -92,12 +79,15 @@ async function crearNotificacion({
   await db
     .collection("notificaciones")
     .add({
+
       usuario_id,
       titulo,
       mensaje,
       tipo,
       reporte_id,
-      leida: false,
+
+      leida:
+        false,
 
       creado_en:
         firebase.firestore.FieldValue.serverTimestamp()
@@ -105,7 +95,12 @@ async function crearNotificacion({
 }
 
 
+/* =========================================================
+   LISTAR NOTIFICACIONES
+========================================================= */
+
 async function listarNotificaciones(uid) {
+
   const snap =
     await db
       .collection("notificaciones")
@@ -116,10 +111,13 @@ async function listarNotificaciones(uid) {
       )
       .get();
 
+
   return snap.docs
     .map(
       doc => ({
-        id: doc.id,
+        id:
+          doc.id,
+
         ...doc.data()
       })
     )
@@ -131,23 +129,37 @@ async function listarNotificaciones(uid) {
 }
 
 
+/* =========================================================
+   MARCAR NOTIFICACIÓN LEÍDA
+========================================================= */
+
 async function marcarNotificacionLeida(id) {
+
   await db
     .collection("notificaciones")
     .doc(id)
     .update({
-      leida: true
+
+      leida:
+        true
     });
 }
 
 
+/* =========================================================
+   CONTAR NOTIFICACIONES
+========================================================= */
+
 async function contarNotificacionesNoLeidas(uid) {
+
   const notificaciones =
     await listarNotificaciones(uid);
 
+
   return notificaciones
     .filter(
-      n => !n.leida
+      n =>
+        !n.leida
     )
     .length;
 }
@@ -158,6 +170,7 @@ async function contarNotificacionesNoLeidas(uid) {
 ========================================================= */
 
 async function obtenerAdministradores() {
+
   const snap =
     await db
       .collection("usuarios")
@@ -168,10 +181,13 @@ async function obtenerAdministradores() {
       )
       .get();
 
+
   return snap.docs
     .map(
       doc => ({
-        id: doc.id,
+        id:
+          doc.id,
+
         ...doc.data()
       })
     )
@@ -192,18 +208,27 @@ async function notificarAdministradores({
   tipo = "info",
   reporte_id = null
 }) {
+
   const admins =
     await obtenerAdministradores();
+
 
   for (
     const admin
     of admins
   ) {
+
     await crearNotificacion({
-      usuario_id: admin.id,
+
+      usuario_id:
+        admin.id,
+
       titulo,
+
       mensaje,
+
       tipo,
+
       reporte_id
     });
   }
@@ -211,17 +236,28 @@ async function notificarAdministradores({
 
 
 /* =========================================================
-   REPORTES
+   CREAR REPORTE
+   TICKET SECUENCIAL
 ========================================================= */
 
 async function crearReporte(data) {
-  const ticket =
-    generarTicket();
+
+  const ahora =
+    new Date();
+
+  const anio =
+    ahora.getFullYear();
+
+
+  /* =========================
+     SLA
+  ========================= */
 
   const sla_horas =
     obtenerHorasSLA(
       data.prioridad
     );
+
 
   const vence_en =
     calcularFechaVencimiento(
@@ -229,75 +265,227 @@ async function crearReporte(data) {
     );
 
 
-  const ref =
-    await db
-      .collection("reportes")
-      .add({
-        ...data,
+  /* =========================
+     CONTADOR DEL AÑO
+  ========================= */
 
-        ticket,
-        sla_horas,
-        vence_en,
-
-        estado:
-          "pendiente",
-
-        tecnico_id:
-          null,
-
-        tecnico_nombre:
-          null,
-
-        evidencia_final_url:
-          null,
-
-        creado_en:
-          firebase.firestore.FieldValue.serverTimestamp(),
-
-        actualizado_en:
-          firebase.firestore.FieldValue.serverTimestamp(),
-
-        historial: [
-          {
-            estado:
-              "pendiente",
-
-            fecha:
-              new Date().toISOString(),
-
-            nota:
-              "Reporte creado",
-
-            usuario:
-              data.creado_por_nombre
-          }
-        ],
-
-        comentarios: []
-      });
+  const contadorRef =
+    db
+      .collection("contadores")
+      .doc(
+        `tickets-${anio}`
+      );
 
 
-  /* =========================================
-     NOTIFICAR ADMINISTRADORES
+  /* =========================
      NUEVO REPORTE
-  ========================================= */
+
+     Firestore genera el ID
+     pero todavía no guarda.
+  ========================= */
+
+  const reporteRef =
+    db
+      .collection("reportes")
+      .doc();
+
+
+  let ticketGenerado =
+    null;
+
+
+  /* =========================
+     TRANSACCIÓN
+
+     Evita tickets duplicados.
+  ========================= */
+
+  await db.runTransaction(
+    async transaction => {
+
+      const contadorSnap =
+        await transaction.get(
+          contadorRef
+        );
+
+
+      let siguienteNumero =
+        1;
+
+
+      /* =====================
+         CONTADOR YA EXISTE
+      ===================== */
+
+      if (
+        contadorSnap.exists
+      ) {
+
+        const contadorActual =
+          contadorSnap
+            .data()
+            .secuencia || 0;
+
+
+        siguienteNumero =
+          contadorActual + 1;
+
+
+        transaction.update(
+          contadorRef,
+          {
+
+            secuencia:
+              siguienteNumero,
+
+            actualizado_en:
+              firebase.firestore.FieldValue.serverTimestamp()
+          }
+        );
+
+      } else {
+
+        /* =====================
+           PRIMER TICKET DEL AÑO
+        ===================== */
+
+        siguienteNumero =
+          1;
+
+
+        transaction.set(
+          contadorRef,
+          {
+
+            anio:
+              anio,
+
+            secuencia:
+              siguienteNumero,
+
+            creado_en:
+              firebase.firestore.FieldValue.serverTimestamp(),
+
+            actualizado_en:
+              firebase.firestore.FieldValue.serverTimestamp()
+          }
+        );
+      }
+
+
+      /* =====================
+         FORMATEAR NÚMERO
+
+         1 -> 0001
+         8 -> 0008
+         26 -> 0026
+      ===================== */
+
+      const numeroFormateado =
+        String(
+          siguienteNumero
+        ).padStart(
+          4,
+          "0"
+        );
+
+
+      ticketGenerado =
+        `AF-${anio}-${numeroFormateado}`;
+
+
+      /* =====================
+         CREAR REPORTE
+      ===================== */
+
+      transaction.set(
+        reporteRef,
+        {
+
+          ...data,
+
+          ticket:
+            ticketGenerado,
+
+          sla_horas,
+
+          vence_en,
+
+          estado:
+            "pendiente",
+
+          tecnico_id:
+            null,
+
+          tecnico_nombre:
+            null,
+
+          evidencia_final_url:
+            null,
+
+          creado_en:
+            firebase.firestore.FieldValue.serverTimestamp(),
+
+          actualizado_en:
+            firebase.firestore.FieldValue.serverTimestamp(),
+
+          historial: [
+
+            {
+
+              estado:
+                "pendiente",
+
+              fecha:
+                new Date().toISOString(),
+
+              nota:
+                "Reporte creado",
+
+              usuario:
+                data.creado_por_nombre
+            }
+
+          ],
+
+          comentarios:
+            []
+        }
+      );
+    }
+  );
+
+
+  /* =========================
+     NOTIFICAR ADMINISTRADORES
+  ========================= */
 
   try {
+
     await notificarAdministradores({
+
       titulo:
         "Nuevo reporte registrado",
 
       mensaje:
-        `${data.creado_por_nombre || "Un usuario"} creó el reporte ${ticket}: ${data.titulo}.`,
+        `${
+          data.creado_por_nombre ||
+          "Un usuario"
+        } creó el reporte ${
+          ticketGenerado
+        }: ${
+          data.titulo
+        }.`,
 
       tipo:
         "nuevo_reporte",
 
       reporte_id:
-        ref.id
+        reporteRef.id
     });
 
   } catch (error) {
+
     console.error(
       "El reporte fue creado, pero no se pudo notificar a los administradores:",
       error
@@ -305,7 +493,7 @@ async function crearReporte(data) {
   }
 
 
-  return ref.id;
+  return reporteRef.id;
 }
 
 
@@ -314,6 +502,7 @@ async function crearReporte(data) {
 ========================================================= */
 
 async function listarMisReportes(uid) {
+
   const snap =
     await db
       .collection("reportes")
@@ -324,10 +513,13 @@ async function listarMisReportes(uid) {
       )
       .get();
 
+
   return snap.docs
     .map(
       d => ({
-        id: d.id,
+        id:
+          d.id,
+
         ...d.data()
       })
     )
@@ -344,15 +536,19 @@ async function listarMisReportes(uid) {
 ========================================================= */
 
 async function listarTodosReportes() {
+
   const snap =
     await db
       .collection("reportes")
       .get();
 
+
   return snap.docs
     .map(
       d => ({
-        id: d.id,
+        id:
+          d.id,
+
         ...d.data()
       })
     )
@@ -369,6 +565,7 @@ async function listarTodosReportes() {
 ========================================================= */
 
 async function listarTareasTecnico(uid) {
+
   const snap =
     await db
       .collection("reportes")
@@ -379,10 +576,13 @@ async function listarTareasTecnico(uid) {
       )
       .get();
 
+
   return snap.docs
     .map(
       d => ({
-        id: d.id,
+        id:
+          d.id,
+
         ...d.data()
       })
     )
@@ -403,17 +603,23 @@ async function listarTareasTecnico(uid) {
 ========================================================= */
 
 async function obtenerReporte(id) {
+
   const snap =
     await db
       .collection("reportes")
       .doc(id)
       .get();
 
+
   return snap.exists
+
     ? {
-        id: snap.id,
+        id:
+          snap.id,
+
         ...snap.data()
       }
+
     : null;
 }
 
@@ -430,12 +636,14 @@ async function cambiarEstadoReporte(
   actorNombre,
   extra = {}
 ) {
+
   if (
     !puedeTransicionar(
       reporte.estado,
       nuevoEstado
     )
   ) {
+
     throw new Error(
       `Transición inválida: ${reporte.estado} → ${nuevoEstado}`
     );
@@ -443,9 +651,11 @@ async function cambiarEstadoReporte(
 
 
   const historial = [
+
     ...(reporte.historial || []),
 
     {
+
       estado:
         nuevoEstado,
 
@@ -466,6 +676,7 @@ async function cambiarEstadoReporte(
     .collection("reportes")
     .doc(id)
     .update({
+
       estado:
         nuevoEstado,
 
@@ -478,21 +689,24 @@ async function cambiarEstadoReporte(
     });
 
 
-  /* =========================================
+  /* =====================================================
      NOTIFICACIONES SEGÚN ESTADO
-  ========================================= */
+  ===================================================== */
 
 
-  /* -----------------------------------------
+  /* -----------------------------------------------------
      TÉCNICO COMENZÓ A TRABAJAR
-  ----------------------------------------- */
+  ----------------------------------------------------- */
 
   if (
     nuevoEstado === "en_proceso" &&
     reporte.creado_por
   ) {
+
     try {
+
       await crearNotificacion({
+
         usuario_id:
           reporte.creado_por,
 
@@ -513,6 +727,7 @@ async function cambiarEstadoReporte(
       });
 
     } catch (error) {
+
       console.error(
         "No se pudo notificar al usuario:",
         error
@@ -521,19 +736,24 @@ async function cambiarEstadoReporte(
   }
 
 
-  /* -----------------------------------------
+  /* -----------------------------------------------------
      TÉCNICO SOLUCIONÓ
-  ----------------------------------------- */
+  ----------------------------------------------------- */
 
   if (
     nuevoEstado === "solucionado"
   ) {
 
+    /* Usuario */
+
     if (
       reporte.creado_por
     ) {
+
       try {
+
         await crearNotificacion({
+
           usuario_id:
             reporte.creado_por,
 
@@ -554,6 +774,7 @@ async function cambiarEstadoReporte(
         });
 
       } catch (error) {
+
         console.error(
           "No se pudo notificar al usuario:",
           error
@@ -562,8 +783,12 @@ async function cambiarEstadoReporte(
     }
 
 
+    /* Administradores */
+
     try {
+
       await notificarAdministradores({
+
         titulo:
           "Reporte solucionado",
 
@@ -581,6 +806,7 @@ async function cambiarEstadoReporte(
       });
 
     } catch (error) {
+
       console.error(
         "No se pudo notificar a los administradores:",
         error
@@ -589,16 +815,19 @@ async function cambiarEstadoReporte(
   }
 
 
-  /* -----------------------------------------
+  /* -----------------------------------------------------
      ADMINISTRADOR CERRÓ
-  ----------------------------------------- */
+  ----------------------------------------------------- */
 
   if (
     nuevoEstado === "cerrado" &&
     reporte.creado_por
   ) {
+
     try {
+
       await crearNotificacion({
+
         usuario_id:
           reporte.creado_por,
 
@@ -619,6 +848,7 @@ async function cambiarEstadoReporte(
       });
 
     } catch (error) {
+
       console.error(
         "No se pudo notificar al usuario:",
         error
@@ -627,16 +857,19 @@ async function cambiarEstadoReporte(
   }
 
 
-  /* -----------------------------------------
+  /* -----------------------------------------------------
      REPORTE RECHAZADO
-  ----------------------------------------- */
+  ----------------------------------------------------- */
 
   if (
     nuevoEstado === "rechazado" &&
     reporte.creado_por
   ) {
+
     try {
+
       await crearNotificacion({
+
         usuario_id:
           reporte.creado_por,
 
@@ -648,7 +881,6 @@ async function cambiarEstadoReporte(
             reporte.ticket ||
             reporte.titulo
           } fue rechazado.${
-
             nota
               ? ` Motivo: ${nota}`
               : ""
@@ -662,6 +894,7 @@ async function cambiarEstadoReporte(
       });
 
     } catch (error) {
+
       console.error(
         "No se pudo notificar al usuario:",
         error
@@ -680,12 +913,14 @@ async function asignarTecnico(
   reporte,
   tecnico
 ) {
+
   if (
     !puedeTransicionar(
       reporte.estado,
       "asignado"
     )
   ) {
+
     throw new Error(
       `No se puede asignar un técnico desde el estado ${reporte.estado}.`
     );
@@ -693,9 +928,11 @@ async function asignarTecnico(
 
 
   const historial = [
+
     ...(reporte.historial || []),
 
     {
+
       estado:
         "asignado",
 
@@ -716,6 +953,7 @@ async function asignarTecnico(
     .collection("reportes")
     .doc(id)
     .update({
+
       estado:
         "asignado",
 
@@ -732,12 +970,14 @@ async function asignarTecnico(
     });
 
 
-  /* -----------------------------------------
+  /* -----------------------------------------------------
      NOTIFICAR AL TÉCNICO
-  ----------------------------------------- */
+  ----------------------------------------------------- */
 
   try {
+
     await crearNotificacion({
+
       usuario_id:
         tecnico.id,
 
@@ -758,6 +998,7 @@ async function asignarTecnico(
     });
 
   } catch (error) {
+
     console.error(
       "No se pudo notificar al técnico:",
       error
@@ -765,15 +1006,18 @@ async function asignarTecnico(
   }
 
 
-  /* -----------------------------------------
+  /* -----------------------------------------------------
      NOTIFICAR AL USUARIO
-  ----------------------------------------- */
+  ----------------------------------------------------- */
 
   if (
     reporte.creado_por
   ) {
+
     try {
+
       await crearNotificacion({
+
         usuario_id:
           reporte.creado_por,
 
@@ -794,6 +1038,7 @@ async function asignarTecnico(
       });
 
     } catch (error) {
+
       console.error(
         "No se pudo notificar al usuario:",
         error
@@ -808,6 +1053,7 @@ async function asignarTecnico(
 ========================================================= */
 
 async function listarTecnicos() {
+
   const snap =
     await db
       .collection("usuarios")
@@ -818,10 +1064,13 @@ async function listarTecnicos() {
       )
       .get();
 
+
   return snap.docs
     .map(
       d => ({
-        id: d.id,
+        id:
+          d.id,
+
         ...d.data()
       })
     )
@@ -837,15 +1086,19 @@ async function listarTecnicos() {
 ========================================================= */
 
 async function listarUsuarios() {
+
   const snap =
     await db
       .collection("usuarios")
       .get();
 
+
   return snap.docs
     .map(
       d => ({
-        id: d.id,
+        id:
+          d.id,
+
         ...d.data()
       })
     );
@@ -860,6 +1113,7 @@ async function cambiarRol(
   uid,
   rol
 ) {
+
   if (
     ![
       "usuario",
@@ -869,15 +1123,18 @@ async function cambiarRol(
       rol
     )
   ) {
+
     throw new Error(
       "Rol inválido"
     );
   }
 
+
   await db
     .collection("usuarios")
     .doc(uid)
     .update({
+
       rol
     });
 }
@@ -891,10 +1148,12 @@ async function cambiarActivo(
   uid,
   activo
 ) {
+
   await db
     .collection("usuarios")
     .doc(uid)
     .update({
+
       activo
     });
 }
@@ -910,10 +1169,13 @@ async function agregarComentario(
   texto,
   actor
 ) {
+
   const comentarios = [
+
     ...(reporte.comentarios || []),
 
     {
+
       texto:
         texto.trim(),
 
@@ -936,6 +1198,7 @@ async function agregarComentario(
     .collection("reportes")
     .doc(id)
     .update({
+
       comentarios,
 
       actualizado_en:
