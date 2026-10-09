@@ -35,33 +35,6 @@
     .ranking-table table {
       min-width: 700px;
     }
-
-    .notificaciones-link {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      text-decoration: none;
-    }
-
-    .contador-notificaciones {
-      min-width: 18px;
-      height: 18px;
-      padding: 0 5px;
-
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-
-      border-radius: 999px;
-
-      background: #dc2626;
-      color: white;
-
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1;
-    }
   </style>
 </head>
 
@@ -82,23 +55,6 @@
 
     <a href="/admin/usuarios.html">
       Usuarios
-    </a>
-
-    <a
-      href="/notificaciones.html"
-      id="notificacionesLink"
-      class="notificaciones-link"
-      title="Notificaciones"
-    >
-      🔔
-
-      <span
-        id="contadorNotificaciones"
-        class="contador-notificaciones"
-        style="display:none"
-      >
-        0
-      </span>
     </a>
 
     <span data-user-name></span>
@@ -148,9 +104,7 @@
       </h2>
 
       <div class="chart-box">
-
         <canvas id="graficoEstados"></canvas>
-
       </div>
 
     </div>
@@ -163,9 +117,7 @@
       </h2>
 
       <div class="chart-box">
-
         <canvas id="graficoPrioridad"></canvas>
-
       </div>
 
     </div>
@@ -215,7 +167,7 @@
 
 
   <!-- =========================
-       REPORTES RECIENTES
+       RECIENTES
   ========================== -->
 
   <div class="card">
@@ -233,27 +185,18 @@
 </div>
 
 
-<!-- =========================
-     FIREBASE
-========================== -->
+<!-- FIREBASE -->
 
-<script
-  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
-></script>
-
-<script
-  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
-></script>
-
-<script
-  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
-></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
 <script src="/js/upload.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/db.js"></script>
+<script src="/js/notifications-ui.js"></script>
 
 
 <script>
@@ -267,6 +210,7 @@ let chartPrioridad = null;
 ================================== */
 
 function esc(s) {
+
   return String(s ?? "").replace(
     /[&<>"']/g,
     m => ({
@@ -294,11 +238,118 @@ function convertirFecha(valor) {
     return valor.toDate();
   }
 
-  const fecha = new Date(valor);
+  const fecha =
+    new Date(valor);
 
-  return isNaN(fecha.getTime())
+  return isNaN(
+    fecha.getTime()
+  )
     ? null
     : fecha;
+}
+
+
+/* ==================================
+   FECHA DE RESOLUCIÓN
+================================== */
+
+function obtenerFechaResolucion(reporte) {
+
+  const historial =
+    reporte.historial || [];
+
+
+  const solucion =
+    historial.find(
+      h =>
+        h.estado === "solucionado"
+    );
+
+
+  if (solucion) {
+
+    return convertirFecha(
+      solucion.fecha
+    );
+  }
+
+
+  const cierre =
+    historial.find(
+      h =>
+        h.estado === "cerrado"
+    );
+
+
+  if (cierre) {
+
+    return convertirFecha(
+      cierre.fecha
+    );
+  }
+
+
+  return null;
+}
+
+
+/* ==================================
+   CUMPLIMIENTO SLA
+================================== */
+
+function cumpleSLA(reporte) {
+
+  if (!reporte.vence_en?.toDate) {
+    return null;
+  }
+
+
+  if (
+    reporte.estado === "rechazado"
+  ) {
+    return null;
+  }
+
+
+  const fechaLimite =
+    reporte.vence_en.toDate();
+
+
+  /*
+    Si ya fue solucionado o cerrado,
+    usamos la fecha real de resolución.
+  */
+  if (
+    reporte.estado === "solucionado" ||
+    reporte.estado === "cerrado"
+  ) {
+
+    const fechaResolucion =
+      obtenerFechaResolucion(
+        reporte
+      );
+
+
+    if (!fechaResolucion) {
+      return null;
+    }
+
+
+    return (
+      fechaResolucion <=
+      fechaLimite
+    );
+  }
+
+
+  /*
+    Si sigue activo,
+    comparamos con la hora actual.
+  */
+  return (
+    new Date() <=
+    fechaLimite
+  );
 }
 
 
@@ -312,23 +363,58 @@ function estaVencido(reporte) {
     return false;
   }
 
+
   if (
-    reporte.estado === "cerrado" ||
-    reporte.estado === "solucionado" ||
     reporte.estado === "rechazado"
   ) {
     return false;
   }
 
+
+  const fechaLimite =
+    reporte.vence_en.toDate();
+
+
+  /*
+    Si terminó, comprobamos
+    cuándo fue solucionado.
+  */
+  if (
+    reporte.estado === "solucionado" ||
+    reporte.estado === "cerrado"
+  ) {
+
+    const fechaResolucion =
+      obtenerFechaResolucion(
+        reporte
+      );
+
+
+    if (!fechaResolucion) {
+      return false;
+    }
+
+
+    return (
+      fechaResolucion >
+      fechaLimite
+    );
+  }
+
+
+  /*
+    Si sigue activo,
+    se compara con la hora actual.
+  */
   return (
-    reporte.vence_en.toDate() <
-    new Date()
+    new Date() >
+    fechaLimite
   );
 }
 
 
 /* ==================================
-   ESTADO DEL SLA
+   ESTADO VISUAL DEL SLA
 ================================== */
 
 function obtenerEstadoSLA(reporte) {
@@ -341,16 +427,6 @@ function obtenerEstadoSLA(reporte) {
     };
   }
 
-  if (
-    reporte.estado === "cerrado" ||
-    reporte.estado === "solucionado"
-  ) {
-
-    return {
-      texto: "FINALIZADO",
-      clase: "badge status"
-    };
-  }
 
   if (
     reporte.estado === "rechazado"
@@ -362,17 +438,62 @@ function obtenerEstadoSLA(reporte) {
     };
   }
 
+
+  if (
+    reporte.estado === "cerrado" ||
+    reporte.estado === "solucionado"
+  ) {
+
+    const cumplimiento =
+      cumpleSLA(
+        reporte
+      );
+
+
+    if (
+      cumplimiento === true
+    ) {
+
+      return {
+        texto: "CUMPLIDO",
+        clase: "badge priority-baja"
+      };
+    }
+
+
+    if (
+      cumplimiento === false
+    ) {
+
+      return {
+        texto: "FUERA DE SLA",
+        clase: "badge priority-urgente"
+      };
+    }
+
+
+    return {
+      texto: "FINALIZADO",
+      clase: "badge status"
+    };
+  }
+
+
   const diferencia =
     reporte.vence_en.toDate() -
     new Date();
 
-  if (diferencia <= 0) {
+
+  if (
+    diferencia <= 0
+  ) {
 
     return {
       texto: "VENCIDO",
       clase: "badge priority-urgente"
     };
   }
+
 
   if (
     diferencia <=
@@ -385,47 +506,11 @@ function obtenerEstadoSLA(reporte) {
     };
   }
 
+
   return {
     texto: "A TIEMPO",
     clase: "badge priority-baja"
   };
-}
-
-
-/* ==================================
-   FECHA DE RESOLUCIÓN
-================================== */
-
-function obtenerFechaResolucion(reporte) {
-
-  const historial =
-    reporte.historial || [];
-
-  const solucion =
-    historial.find(
-      h =>
-        h.estado === "solucionado"
-    );
-
-  if (solucion) {
-    return convertirFecha(
-      solucion.fecha
-    );
-  }
-
-  const cierre =
-    historial.find(
-      h =>
-        h.estado === "cerrado"
-    );
-
-  if (cierre) {
-    return convertirFecha(
-      cierre.fecha
-    );
-  }
-
-  return null;
 }
 
 
@@ -440,21 +525,31 @@ function calcularTiempoResolucion(reporte) {
       reporte.creado_en
     );
 
+
   const fin =
     obtenerFechaResolucion(
       reporte
     );
 
-  if (!inicio || !fin) {
+
+  if (
+    !inicio ||
+    !fin
+  ) {
     return null;
   }
+
 
   const diferencia =
     fin - inicio;
 
-  if (diferencia < 0) {
+
+  if (
+    diferencia < 0
+  ) {
     return null;
   }
+
 
   return diferencia;
 }
@@ -473,15 +568,18 @@ function formatearDuracion(ms) {
     return "-";
   }
 
+
   const minutos =
     Math.round(
       ms / 60000
     );
 
+
   const dias =
     Math.floor(
       minutos / 1440
     );
+
 
   const horas =
     Math.floor(
@@ -491,70 +589,28 @@ function formatearDuracion(ms) {
       ) / 60
     );
 
+
   const mins =
     minutos % 60;
 
-  if (dias > 0) {
+
+  if (
+    dias > 0
+  ) {
+
     return `${dias} d ${horas} h`;
   }
 
-  if (horas > 0) {
+
+  if (
+    horas > 0
+  ) {
+
     return `${horas} h ${mins} min`;
   }
 
+
   return `${mins} min`;
-}
-
-
-/* ==================================
-   CONTADOR DE NOTIFICACIONES
-================================== */
-
-async function actualizarContadorNotificaciones() {
-
-  const contador =
-    document.getElementById(
-      "contadorNotificaciones"
-    );
-
-  if (
-    !contador ||
-    !usuarioActual?.uid
-  ) {
-    return;
-  }
-
-  try {
-
-    const cantidad =
-      await contarNotificacionesNoLeidas(
-        usuarioActual.uid
-      );
-
-    contador.textContent =
-      cantidad;
-
-    if (cantidad > 0) {
-
-      contador.style.display =
-        "inline-flex";
-
-    } else {
-
-      contador.style.display =
-        "none";
-    }
-
-  } catch (error) {
-
-    console.error(
-      "Error cargando contador de notificaciones:",
-      error
-    );
-
-    contador.style.display =
-      "none";
-  }
 }
 
 
@@ -566,16 +622,8 @@ async function iniciarPagina() {
 
   try {
 
-    /* -------------------------
-       NOTIFICACIONES
-    ------------------------- */
+    await inicializarNotificacionesUI();
 
-    await actualizarContadorNotificaciones();
-
-
-    /* -------------------------
-       REPORTES
-    ------------------------- */
 
     const data =
       await listarTodosReportes();
@@ -587,23 +635,32 @@ async function iniciarPagina() {
 
     const contador = {
 
-      total: data.length,
+      total:
+        data.length,
 
-      pendiente: 0,
+      pendiente:
+        0,
 
-      revisado: 0,
+      revisado:
+        0,
 
-      asignado: 0,
+      asignado:
+        0,
 
-      en_proceso: 0,
+      en_proceso:
+        0,
 
-      solucionado: 0,
+      solucionado:
+        0,
 
-      cerrado: 0,
+      cerrado:
+        0,
 
-      rechazado: 0,
+      rechazado:
+        0,
 
-      vencido: 0
+      vencido:
+        0
     };
 
 
@@ -621,6 +678,7 @@ async function iniciarPagina() {
           ]++;
         }
 
+
         if (
           estaVencido(
             reporte
@@ -637,28 +695,48 @@ async function iniciarPagina() {
        SLA
     ============================== */
 
-    const reportesConSLA =
-      data.filter(
-        r =>
-          r.vence_en?.toDate
-      );
+    const evaluacionesSLA =
+      data
+        .map(
+          reporte => ({
+            reporte,
+
+            cumple:
+              cumpleSLA(
+                reporte
+              )
+          })
+        )
+        .filter(
+          item =>
+            item.cumple !== null
+        );
 
 
     const reportesCumplenSLA =
-      reportesConSLA.filter(
-        r =>
-          !estaVencido(r)
+      evaluacionesSLA.filter(
+        item =>
+          item.cumple === true
+      );
+
+
+    const reportesIncumplenSLA =
+      evaluacionesSLA.filter(
+        item =>
+          item.cumple === false
       );
 
 
     const porcentajeSLA =
-      reportesConSLA.length
+      evaluacionesSLA.length
+
         ? Math.round(
             (
               reportesCumplenSLA.length /
-              reportesConSLA.length
+              evaluacionesSLA.length
             ) * 100
           )
+
         : 100;
 
 
@@ -679,12 +757,14 @@ async function iniciarPagina() {
 
     const promedioResolucion =
       tiemposResolucion.length
+
         ? tiemposResolucion.reduce(
             (a, b) =>
               a + b,
             0
           ) /
           tiemposResolucion.length
+
         : null;
 
 
@@ -776,7 +856,7 @@ async function iniciarPagina() {
       <div class="card">
 
         <div class="small">
-          Vencidos
+          Vencidos / fuera de SLA
         </div>
 
         <div class="metric">
@@ -794,6 +874,11 @@ async function iniciarPagina() {
 
         <div class="metric">
           ${porcentajeSLA}%
+        </div>
+
+        <div class="metric-sub">
+          ${reportesCumplenSLA.length} cumplen ·
+          ${reportesIncumplenSLA.length} incumplen
         </div>
 
       </div>
@@ -843,7 +928,6 @@ async function iniciarPagina() {
       media: 0,
       alta: 0,
       urgente: 0
-
     };
 
 
@@ -869,6 +953,7 @@ async function iniciarPagina() {
     ============================== */
 
     if (chartEstados) {
+
       chartEstados.destroy();
     }
 
@@ -880,7 +965,8 @@ async function iniciarPagina() {
         ),
         {
 
-          type: "doughnut",
+          type:
+            "doughnut",
 
           data: {
 
@@ -897,7 +983,6 @@ async function iniciarPagina() {
             datasets: [
               {
                 data: [
-
                   contador.pendiente,
                   contador.revisado,
                   contador.asignado,
@@ -905,7 +990,6 @@ async function iniciarPagina() {
                   contador.solucionado,
                   contador.cerrado,
                   contador.rechazado
-
                 ]
               }
             ]
@@ -913,14 +997,17 @@ async function iniciarPagina() {
 
           options: {
 
-            responsive: true,
+            responsive:
+              true,
 
-            maintainAspectRatio: false,
+            maintainAspectRatio:
+              false,
 
             plugins: {
 
               legend: {
-                position: "bottom"
+                position:
+                  "bottom"
               }
             }
           }
@@ -933,6 +1020,7 @@ async function iniciarPagina() {
     ============================== */
 
     if (chartPrioridad) {
+
       chartPrioridad.destroy();
     }
 
@@ -944,7 +1032,8 @@ async function iniciarPagina() {
         ),
         {
 
-          type: "bar",
+          type:
+            "bar",
 
           data: {
 
@@ -957,6 +1046,7 @@ async function iniciarPagina() {
 
             datasets: [
               {
+
                 label:
                   "Cantidad de reportes",
 
@@ -972,18 +1062,23 @@ async function iniciarPagina() {
 
           options: {
 
-            responsive: true,
+            responsive:
+              true,
 
-            maintainAspectRatio: false,
+            maintainAspectRatio:
+              false,
 
             scales: {
 
               y: {
 
-                beginAtZero: true,
+                beginAtZero:
+                  true,
 
                 ticks: {
-                  precision: 0
+
+                  precision:
+                    0
                 }
               }
             }
@@ -1013,7 +1108,9 @@ async function iniciarPagina() {
           reporte.tecnico_id;
 
 
-        if (!tecnicos[id]) {
+        if (
+          !tecnicos[id]
+        ) {
 
           tecnicos[id] = {
 
@@ -1021,15 +1118,20 @@ async function iniciarPagina() {
               reporte.tecnico_nombre ||
               "Técnico",
 
-            asignados: 0,
+            asignados:
+              0,
 
-            activos: 0,
+            activos:
+              0,
 
-            solucionados: 0,
+            solucionados:
+              0,
 
-            cerrados: 0,
+            cerrados:
+              0,
 
-            tiempos: []
+            tiempos:
+              []
           };
         }
 
@@ -1094,11 +1196,11 @@ async function iniciarPagina() {
       Object.values(
         tecnicos
       )
-      .sort(
-        (a, b) =>
-          b.cerrados -
-          a.cerrados
-      );
+        .sort(
+          (a, b) =>
+            b.cerrados -
+            a.cerrados
+        );
 
 
     if (
@@ -1151,12 +1253,14 @@ async function iniciarPagina() {
 
                     const promedio =
                       tecnico.tiempos.length
+
                         ? tecnico.tiempos.reduce(
                             (a, b) =>
                               a + b,
                             0
                           ) /
                           tecnico.tiempos.length
+
                         : null;
 
 
@@ -1165,11 +1269,13 @@ async function iniciarPagina() {
                       <tr>
 
                         <td>
+
                           <b>
                             ${esc(
                               tecnico.nombre
                             )}
                           </b>
+
                         </td>
 
                         <td>
@@ -1213,8 +1319,7 @@ async function iniciarPagina() {
       rendimientoTecnicos.innerHTML = `
 
         <p class="small">
-          Todavía no existen
-          reportes asignados a técnicos.
+          Todavía no existen reportes asignados a técnicos.
         </p>
 
       `;
@@ -1235,6 +1340,7 @@ async function iniciarPagina() {
           reporte.categoria ||
           "Sin categoría";
 
+
         conteoCategorias[
           categoria
         ] =
@@ -1251,10 +1357,11 @@ async function iniciarPagina() {
       Object.entries(
         conteoCategorias
       )
-      .sort(
-        (a, b) =>
-          b[1] - a[1]
-      );
+        .sort(
+          (a, b) =>
+            b[1] -
+            a[1]
+        );
 
 
     categorias.innerHTML =
@@ -1279,6 +1386,7 @@ async function iniciarPagina() {
               </tr>
 
             </thead>
+
 
             <tbody>
 
@@ -1323,7 +1431,7 @@ async function iniciarPagina() {
 
 
     /* ==============================
-       RECIENTES
+       REPORTES RECIENTES
     ============================== */
 
     const ultimos =
@@ -1351,16 +1459,14 @@ async function iniciarPagina() {
                   <div
                     style="
                       padding:14px 0;
-                      border-bottom:
-                      1px solid #e5e7eb;
+                      border-bottom:1px solid #e5e7eb;
                     "
                   >
 
                     <div
                       class="actions"
                       style="
-                        justify-content:
-                        space-between;
+                        justify-content:space-between;
                       "
                     >
 
@@ -1372,9 +1478,7 @@ async function iniciarPagina() {
                           )}
                         </b>
 
-                        <div
-                          class="small"
-                        >
+                        <div class="small">
 
                           ${esc(
                             reporte.ticket ||
@@ -1395,9 +1499,7 @@ async function iniciarPagina() {
 
                       <div>
 
-                        <span
-                          class="badge status"
-                        >
+                        <span class="badge status">
                           ${esc(
                             reporte.estado
                           )}
@@ -1456,8 +1558,7 @@ async function iniciarPagina() {
 
       <div class="notice error">
 
-        No se pudieron cargar
-        las estadísticas.
+        No se pudieron cargar las estadísticas.
 
       </div>
 
@@ -1467,7 +1568,7 @@ async function iniciarPagina() {
 
 
 /* ==================================
-   PROTEGER DASHBOARD
+   SEGURIDAD
 ================================== */
 
 protegerPagina([
