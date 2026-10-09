@@ -1,17 +1,27 @@
 rules_version = '2';
+
 service cloud.firestore {
+
   match /databases/{database}/documents {
+
+    /* =========================
+       FUNCIONES
+    ========================= */
 
     function signedIn() {
       return request.auth != null;
     }
 
     function userDoc() {
-      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+      return get(
+        /databases/$(database)/documents/usuarios/$(request.auth.uid)
+      );
     }
 
     function role() {
-      return signedIn() ? userDoc().data.rol : null;
+      return signedIn()
+        ? userDoc().data.rol
+        : null;
     }
 
     function isAdmin() {
@@ -22,40 +32,276 @@ service cloud.firestore {
       return role() == "tecnico";
     }
 
+    function isUsuario() {
+      return role() == "usuario";
+    }
+
+
+    /* =========================
+       USUARIOS
+    ========================= */
+
     match /usuarios/{uid} {
-      allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.rol == "usuario";
-      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow update: if signedIn() && (
-        (request.auth.uid == uid
-          && request.resource.data.rol == resource.data.rol
-          && request.resource.data.activo == resource.data.activo)
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.rol == "usuario"
+        && request.resource.data.activo == true;
+
+
+      allow read: if signedIn() && (
+        request.auth.uid == uid
         || isAdmin()
+        || resource.data.rol == "administrador"
       );
+
+
+      allow update: if signedIn() && (
+
+        isAdmin()
+
+        ||
+
+        (
+          request.auth.uid == uid
+
+          && request.resource.data
+               .diff(resource.data)
+               .affectedKeys()
+               .hasOnly([
+                 "nombre",
+                 "email"
+               ])
+        )
+      );
+
+
       allow delete: if false;
     }
 
+
+    /* =========================
+       REPORTES
+    ========================= */
+
     match /reportes/{id} {
+
+      /* -------------------------
+         CREAR
+      ------------------------- */
+
       allow create: if signedIn()
-        && request.resource.data.creado_por == request.auth.uid
-        && request.resource.data.estado == "pendiente";
+
+        && request.resource.data.creado_por
+           == request.auth.uid
+
+        && request.resource.data.estado
+           == "pendiente"
+
+        && request.resource.data.tecnico_id
+           == null
+
+        && request.resource.data.tecnico_nombre
+           == null;
+
+
+      /* -------------------------
+         LEER
+      ------------------------- */
 
       allow read: if signedIn() && (
-        resource.data.creado_por == request.auth.uid
-        || resource.data.tecnico_id == request.auth.uid
-        || isAdmin()
+
+        isAdmin()
+
+        ||
+
+        resource.data.creado_por
+          == request.auth.uid
+
+        ||
+
+        resource.data.tecnico_id
+          == request.auth.uid
       );
 
-      allow update: if signedIn() && (
-        isAdmin()
-        || (isTecnico() && resource.data.tecnico_id == request.auth.uid)
-        || (
-          resource.data.creado_por == request.auth.uid
-          && request.resource.data.estado == resource.data.estado
-          && request.resource.data.tecnico_id == resource.data.tecnico_id
-          && request.resource.data.prioridad == resource.data.prioridad
-        )
-      );
+
+      /* -------------------------
+         ACTUALIZAR ADMIN
+      ------------------------- */
+
+      allow update: if signedIn() && isAdmin();
+
+
+      /* -------------------------
+         ACTUALIZAR TÉCNICO
+      ------------------------- */
+
+      allow update: if signedIn()
+        && isTecnico()
+
+        && resource.data.tecnico_id
+           == request.auth.uid
+
+        && request.resource.data.creado_por
+           == resource.data.creado_por
+
+        && request.resource.data.tecnico_id
+           == resource.data.tecnico_id
+
+        && request.resource.data.tecnico_nombre
+           == resource.data.tecnico_nombre
+
+        && request.resource.data.ticket
+           == resource.data.ticket
+
+        && request.resource.data.prioridad
+           == resource.data.prioridad
+
+        && request.resource.data.sla_horas
+           == resource.data.sla_horas
+
+        && request.resource.data.vence_en
+           == resource.data.vence_en
+
+        && request.resource.data.estado in [
+          "en_proceso",
+          "solucionado"
+        ];
+
+
+      /* -------------------------
+         ACTUALIZAR USUARIO
+      ------------------------- */
+
+      allow update: if signedIn()
+        && isUsuario()
+
+        && resource.data.creado_por
+           == request.auth.uid
+
+        && request.resource.data
+             .diff(resource.data)
+             .affectedKeys()
+             .hasOnly([
+               "comentarios",
+               "actualizado_en"
+             ]);
+
+
+      allow delete: if false;
+    }
+
+
+    /* =========================
+       NOTIFICACIONES
+    ========================= */
+
+    match /notificaciones/{id} {
+
+      /*
+        ADMIN:
+        puede crear notificaciones
+        para cualquier usuario.
+      */
+      allow create: if signedIn()
+        && isAdmin()
+
+        && request.resource.data.usuario_id
+           is string
+
+        && request.resource.data.titulo
+           is string
+
+        && request.resource.data.mensaje
+           is string
+
+        && request.resource.data.tipo
+           is string
+
+        && request.resource.data.leida
+           == false;
+
+
+      /*
+        TÉCNICO:
+        puede generar notificaciones
+        relacionadas con reportes
+        mientras trabaja.
+      */
+      allow create: if signedIn()
+        && isTecnico()
+
+        && request.resource.data.usuario_id
+           is string
+
+        && request.resource.data.titulo
+           is string
+
+        && request.resource.data.mensaje
+           is string
+
+        && request.resource.data.tipo
+           is string
+
+        && request.resource.data.leida
+           == false;
+
+
+      /*
+        USUARIO:
+        permite generar avisos dirigidos
+        a administradores cuando crea
+        un nuevo reporte.
+      */
+      allow create: if signedIn()
+        && isUsuario()
+
+        && get(
+          /databases/$(database)/documents/usuarios/$(request.resource.data.usuario_id)
+        ).data.rol == "administrador"
+
+        && request.resource.data.titulo
+           is string
+
+        && request.resource.data.mensaje
+           is string
+
+        && request.resource.data.tipo
+           is string
+
+        && request.resource.data.leida
+           == false;
+
+
+      /* -------------------------
+         LEER
+      ------------------------- */
+
+      allow read: if signedIn()
+        && resource.data.usuario_id
+           == request.auth.uid;
+
+
+      /* -------------------------
+         MARCAR COMO LEÍDA
+      ------------------------- */
+
+      allow update: if signedIn()
+
+        && resource.data.usuario_id
+           == request.auth.uid
+
+        && request.resource.data.usuario_id
+           == resource.data.usuario_id
+
+        && request.resource.data
+             .diff(resource.data)
+             .affectedKeys()
+             .hasOnly([
+               "leida"
+             ]);
+
 
       allow delete: if false;
     }
