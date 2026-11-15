@@ -4,9 +4,9 @@ service cloud.firestore {
 
   match /databases/{database}/documents {
 
-    /* =========================
-       FUNCIONES
-    ========================= */
+    /* =====================================================
+       FUNCIONES GENERALES
+    ===================================================== */
 
     function signedIn() {
       return request.auth != null;
@@ -36,19 +36,39 @@ service cloud.firestore {
       return role() == "usuario";
     }
 
+    function reporteDoc(reporteId) {
+      return get(
+        /databases/$(database)/documents/reportes/$(reporteId)
+      );
+    }
 
-    /* =========================
+    function usuarioDestino(uid) {
+      return get(
+        /databases/$(database)/documents/usuarios/$(uid)
+      );
+    }
+
+
+    /* =====================================================
        USUARIOS
-    ========================= */
+    ===================================================== */
 
     match /usuarios/{uid} {
 
+      /* Registro de usuario normal */
+
       allow create: if signedIn()
+
         && request.auth.uid == uid
+
         && request.resource.data.uid == uid
+
         && request.resource.data.rol == "usuario"
+
         && request.resource.data.activo == true;
 
+
+      /* Lectura */
 
       allow read: if signedIn() && (
 
@@ -64,6 +84,8 @@ service cloud.firestore {
       );
 
 
+      /* Administrador puede gestionar usuarios */
+
       allow update: if signedIn() && (
 
         isAdmin()
@@ -72,6 +94,15 @@ service cloud.firestore {
 
         (
           request.auth.uid == uid
+
+          && request.resource.data.uid
+             == resource.data.uid
+
+          && request.resource.data.rol
+             == resource.data.rol
+
+          && request.resource.data.activo
+             == resource.data.activo
 
           && request.resource.data
                .diff(resource.data)
@@ -88,25 +119,28 @@ service cloud.firestore {
     }
 
 
-    /* =========================
+    /* =====================================================
        CONTADORES DE TICKETS
-    ========================= */
+    ===================================================== */
 
     match /contadores/{id} {
 
       /*
-        Permitir leer el contador
-        para generar el siguiente ticket.
+        Solo los usuarios normales necesitan
+        generar tickets al crear reportes.
       */
-      allow read: if signedIn();
+
+      allow read: if signedIn()
+        && isUsuario();
 
 
       /*
-        Crear el contador del año.
-
-        Siempre debe iniciar en 1.
+        Primer ticket del contador.
       */
+
       allow create: if signedIn()
+
+        && isUsuario()
 
         && request.resource.data.anio is int
 
@@ -116,12 +150,12 @@ service cloud.firestore {
 
 
       /*
-        Actualizar contador.
-
-        Solo puede aumentar exactamente
-        una posición cada vez.
+        Solo puede incrementar exactamente +1.
       */
+
       allow update: if signedIn()
+
+        && isUsuario()
 
         && request.resource.data.anio
            == resource.data.anio
@@ -144,17 +178,19 @@ service cloud.firestore {
     }
 
 
-    /* =========================
+    /* =====================================================
        REPORTES
-    ========================= */
+    ===================================================== */
 
     match /reportes/{id} {
 
-      /* -------------------------
-         CREAR
-      ------------------------- */
+      /* -----------------------------------------------------
+         CREAR REPORTE
+      ----------------------------------------------------- */
 
       allow create: if signedIn()
+
+        && isUsuario()
 
         && request.resource.data.creado_por
            == request.auth.uid
@@ -172,12 +208,14 @@ service cloud.firestore {
            is string
 
         && request.resource.data.sla_horas
-           is int;
+           is int
+
+        && request.resource.data.sla_horas > 0;
 
 
-      /* -------------------------
-         LEER
-      ------------------------- */
+      /* -----------------------------------------------------
+         LEER REPORTE
+      ----------------------------------------------------- */
 
       allow read: if signedIn() && (
 
@@ -195,17 +233,18 @@ service cloud.firestore {
       );
 
 
-      /* -------------------------
-         ACTUALIZAR ADMIN
-      ------------------------- */
+      /* -----------------------------------------------------
+         ADMINISTRADOR
+      ----------------------------------------------------- */
 
       allow update: if signedIn()
         && isAdmin();
 
 
-      /* -------------------------
-         ACTUALIZAR TÉCNICO
-      ------------------------- */
+      /* -----------------------------------------------------
+         TÉCNICO:
+         ASIGNADO → EN_PROCESO
+      ----------------------------------------------------- */
 
       allow update: if signedIn()
 
@@ -214,36 +253,79 @@ service cloud.firestore {
         && resource.data.tecnico_id
            == request.auth.uid
 
-        && request.resource.data.creado_por
-           == resource.data.creado_por
+        && resource.data.estado
+           == "asignado"
 
-        && request.resource.data.tecnico_id
-           == resource.data.tecnico_id
+        && request.resource.data.estado
+           == "en_proceso"
 
-        && request.resource.data.tecnico_nombre
-           == resource.data.tecnico_nombre
-
-        && request.resource.data.ticket
-           == resource.data.ticket
-
-        && request.resource.data.prioridad
-           == resource.data.prioridad
-
-        && request.resource.data.sla_horas
-           == resource.data.sla_horas
-
-        && request.resource.data.vence_en
-           == resource.data.vence_en
-
-        && request.resource.data.estado in [
-          "en_proceso",
-          "solucionado"
-        ];
+        && request.resource.data
+             .diff(resource.data)
+             .affectedKeys()
+             .hasOnly([
+               "estado",
+               "historial",
+               "actualizado_en"
+             ]);
 
 
-      /* -------------------------
-         ACTUALIZAR USUARIO
-      ------------------------- */
+      /* -----------------------------------------------------
+         TÉCNICO:
+         EN_PROCESO → SOLUCIONADO
+      ----------------------------------------------------- */
+
+      allow update: if signedIn()
+
+        && isTecnico()
+
+        && resource.data.tecnico_id
+           == request.auth.uid
+
+        && resource.data.estado
+           == "en_proceso"
+
+        && request.resource.data.estado
+           == "solucionado"
+
+        && request.resource.data
+             .diff(resource.data)
+             .affectedKeys()
+             .hasOnly([
+               "estado",
+               "historial",
+               "actualizado_en",
+               "evidencia_final_url"
+             ]);
+
+
+      /* -----------------------------------------------------
+         TÉCNICO:
+         AGREGAR COMENTARIO
+      ----------------------------------------------------- */
+
+      allow update: if signedIn()
+
+        && isTecnico()
+
+        && resource.data.tecnico_id
+           == request.auth.uid
+
+        && request.resource.data.estado
+           == resource.data.estado
+
+        && request.resource.data
+             .diff(resource.data)
+             .affectedKeys()
+             .hasOnly([
+               "comentarios",
+               "actualizado_en"
+             ]);
+
+
+      /* -----------------------------------------------------
+         USUARIO:
+         AGREGAR COMENTARIO
+      ----------------------------------------------------- */
 
       allow update: if signedIn()
 
@@ -251,6 +333,18 @@ service cloud.firestore {
 
         && resource.data.creado_por
            == request.auth.uid
+
+        && request.resource.data.estado
+           == resource.data.estado
+
+        && request.resource.data.tecnico_id
+           == resource.data.tecnico_id
+
+        && request.resource.data.ticket
+           == resource.data.ticket
+
+        && request.resource.data.prioridad
+           == resource.data.prioridad
 
         && request.resource.data
              .diff(resource.data)
@@ -265,15 +359,15 @@ service cloud.firestore {
     }
 
 
-    /* =========================
+    /* =====================================================
        NOTIFICACIONES
-    ========================= */
+    ===================================================== */
 
     match /notificaciones/{id} {
 
-      /* -------------------------
-         ADMIN CREA NOTIFICACIONES
-      ------------------------- */
+      /* -----------------------------------------------------
+         VALIDACIÓN BÁSICA ADMIN
+      ----------------------------------------------------- */
 
       allow create: if signedIn()
 
@@ -295,9 +389,16 @@ service cloud.firestore {
            == false;
 
 
-      /* -------------------------
-         TÉCNICO CREA NOTIFICACIONES
-      ------------------------- */
+      /* -----------------------------------------------------
+         TÉCNICO
+
+         Solo puede crear notificaciones relacionadas
+         con un reporte que realmente tiene asignado.
+
+         Destino permitido:
+         - creador del reporte
+         - administrador
+      ----------------------------------------------------- */
 
       allow create: if signedIn()
 
@@ -306,6 +407,9 @@ service cloud.firestore {
         && request.resource.data.usuario_id
            is string
 
+        && request.resource.data.reporte_id
+           is string
+
         && request.resource.data.titulo
            is string
 
@@ -316,12 +420,36 @@ service cloud.firestore {
            is string
 
         && request.resource.data.leida
-           == false;
+           == false
+
+        && reporteDoc(
+             request.resource.data.reporte_id
+           ).data.tecnico_id
+           == request.auth.uid
+
+        && (
+
+          request.resource.data.usuario_id
+            ==
+          reporteDoc(
+            request.resource.data.reporte_id
+          ).data.creado_por
+
+          ||
+
+          usuarioDestino(
+            request.resource.data.usuario_id
+          ).data.rol
+            == "administrador"
+        );
 
 
-      /* -------------------------
-         USUARIO CREA AVISO AL ADMIN
-      ------------------------- */
+      /* -----------------------------------------------------
+         USUARIO
+
+         Solo puede notificar a administradores
+         sobre un reporte que realmente le pertenece.
+      ----------------------------------------------------- */
 
       allow create: if signedIn()
 
@@ -330,9 +458,8 @@ service cloud.firestore {
         && request.resource.data.usuario_id
            is string
 
-        && get(
-          /databases/$(database)/documents/usuarios/$(request.resource.data.usuario_id)
-        ).data.rol == "administrador"
+        && request.resource.data.reporte_id
+           is string
 
         && request.resource.data.titulo
            is string
@@ -344,12 +471,22 @@ service cloud.firestore {
            is string
 
         && request.resource.data.leida
-           == false;
+           == false
+
+        && reporteDoc(
+             request.resource.data.reporte_id
+           ).data.creado_por
+           == request.auth.uid
+
+        && usuarioDestino(
+             request.resource.data.usuario_id
+           ).data.rol
+           == "administrador";
 
 
-      /* -------------------------
-         LEER
-      ------------------------- */
+      /* -----------------------------------------------------
+         LEER NOTIFICACIONES
+      ----------------------------------------------------- */
 
       allow read: if signedIn()
 
@@ -357,9 +494,11 @@ service cloud.firestore {
            == request.auth.uid;
 
 
-      /* -------------------------
+      /* -----------------------------------------------------
          MARCAR COMO LEÍDA
-      ------------------------- */
+
+         Únicamente puede cambiar el campo "leida".
+      ----------------------------------------------------- */
 
       allow update: if signedIn()
 

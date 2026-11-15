@@ -170,6 +170,7 @@ function esc(s) {
 
   return String(s ?? "").replace(
     /[&<>"']/g,
+
     m => ({
       "&": "&amp;",
       "<": "&lt;",
@@ -182,30 +183,111 @@ function esc(s) {
 
 
 /* ==================================
+   CONVERTIR FECHA
+================================== */
+
+function convertirFecha(valor) {
+
+  if (!valor) {
+    return null;
+  }
+
+  if (valor.toDate) {
+    return valor.toDate();
+  }
+
+  if (valor.seconds) {
+
+    return new Date(
+      valor.seconds * 1000
+    );
+  }
+
+  const fecha =
+    new Date(valor);
+
+  return isNaN(
+    fecha.getTime()
+  )
+    ? null
+    : fecha;
+}
+
+
+/* ==================================
+   FECHA DE RESOLUCIÓN
+================================== */
+
+function obtenerFechaResolucion(reporte) {
+
+  const historial =
+    reporte.historial || [];
+
+
+  const soluciones =
+    historial.filter(
+      item =>
+        item.estado === "solucionado"
+    );
+
+
+  if (
+    soluciones.length > 0
+  ) {
+
+    const ultimaSolucion =
+      soluciones[
+        soluciones.length - 1
+      ];
+
+
+    return convertirFecha(
+      ultimaSolucion.fecha
+    );
+  }
+
+
+  const cierres =
+    historial.filter(
+      item =>
+        item.estado === "cerrado"
+    );
+
+
+  if (
+    cierres.length > 0
+  ) {
+
+    const ultimoCierre =
+      cierres[
+        cierres.length - 1
+      ];
+
+
+    return convertirFecha(
+      ultimoCierre.fecha
+    );
+  }
+
+
+  return null;
+}
+
+
+/* ==================================
    ESTADO SLA
 ================================== */
 
 function obtenerEstadoSLA(r) {
 
-  if (
-    !r.vence_en?.toDate
-  ) {
+  if (!r.vence_en) {
 
     return {
-      texto: "SIN SLA",
-      clase: "badge"
-    };
-  }
+      texto:
+        "SIN SLA",
 
-
-  if (
-    r.estado === "cerrado" ||
-    r.estado === "solucionado"
-  ) {
-
-    return {
-      texto: "FINALIZADO",
-      clase: "badge status"
+      clase:
+        "badge"
     };
   }
 
@@ -215,17 +297,89 @@ function obtenerEstadoSLA(r) {
   ) {
 
     return {
-      texto: "RECHAZADO",
-      clase: "badge"
+      texto:
+        "RECHAZADO",
+
+      clase:
+        "badge"
     };
   }
 
 
   const vence =
-    r.vence_en.toDate();
+    convertirFecha(
+      r.vence_en
+    );
+
+
+  if (!vence) {
+
+    return {
+      texto:
+        "SIN SLA",
+
+      clase:
+        "badge"
+    };
+  }
+
+
+  /* ==================================
+     REPORTE FINALIZADO
+  ================================== */
+
+  if (
+    r.estado === "cerrado" ||
+    r.estado === "solucionado"
+  ) {
+
+    const fechaResolucion =
+      obtenerFechaResolucion(r);
+
+
+    if (!fechaResolucion) {
+
+      return {
+        texto:
+          "FINALIZADO",
+
+        clase:
+          "badge"
+      };
+    }
+
+
+    if (
+      fechaResolucion <= vence
+    ) {
+
+      return {
+        texto:
+          "CUMPLIDO",
+
+        clase:
+          "badge priority-baja"
+      };
+    }
+
+
+    return {
+      texto:
+        "FUERA DE SLA",
+
+      clase:
+        "badge priority-urgente"
+    };
+  }
+
+
+  /* ==================================
+     REPORTE ACTIVO
+  ================================== */
 
   const ahora =
     new Date();
+
 
   const diferencia =
     vence - ahora;
@@ -236,8 +390,11 @@ function obtenerEstadoSLA(r) {
   ) {
 
     return {
-      texto: "VENCIDO",
-      clase: "badge priority-urgente"
+      texto:
+        "VENCIDO",
+
+      clase:
+        "badge priority-urgente"
     };
   }
 
@@ -248,15 +405,21 @@ function obtenerEstadoSLA(r) {
   ) {
 
     return {
-      texto: "PRÓXIMO A VENCER",
-      clase: "badge priority-media"
+      texto:
+        "PRÓXIMO A VENCER",
+
+      clase:
+        "badge priority-media"
     };
   }
 
 
   return {
-    texto: "A TIEMPO",
-    clase: "badge priority-baja"
+    texto:
+      "A TIEMPO",
+
+    clase:
+      "badge priority-baja"
   };
 }
 
@@ -271,17 +434,21 @@ async function iniciarPagina() {
 
     await inicializarNotificacionesUI();
 
+
     todos =
       await listarTodosReportes();
 
+
     tecnicos =
       await listarTecnicos();
+
 
     render();
 
   } catch (error) {
 
     console.error(error);
+
 
     lista.innerHTML = `
       <div class="notice error">
@@ -302,6 +469,7 @@ function render() {
     buscar.value
       .trim()
       .toLowerCase();
+
 
   const estadoSeleccionado =
     fEstado.value;
@@ -370,12 +538,12 @@ function render() {
 
 
           const fechaVence =
-            r.vence_en?.toDate
-
-              ? r.vence_en
-                  .toDate()
-                  .toLocaleString()
-
+            convertirFecha(
+              r.vence_en
+            )
+              ? convertirFecha(
+                  r.vence_en
+                ).toLocaleString()
               : "Sin fecha";
 
 
@@ -425,10 +593,10 @@ function render() {
 
                     <span
                       class="
-                      badge
-                      priority-${esc(
-                        r.prioridad
-                      )}
+                        badge
+                        priority-${esc(
+                          r.prioridad
+                        )}
                       "
                     >
                       ${esc(
@@ -556,6 +724,7 @@ function render() {
               ${
                 r.imagen_inicial_url
                   ? `
+
                     <div
                       style="margin-top:16px"
                     >
@@ -573,6 +742,7 @@ function render() {
                       >
 
                     </div>
+
                   `
                   : ""
               }
@@ -581,6 +751,7 @@ function render() {
               ${
                 r.evidencia_final_url
                   ? `
+
                     <div
                       style="margin-top:16px"
                     >
@@ -598,6 +769,7 @@ function render() {
                       >
 
                     </div>
+
                   `
                   : ""
               }
@@ -610,7 +782,9 @@ function render() {
 
                 ${
                   r.estado === "pendiente"
+
                     ? `
+
                       <button
                         onclick="estado(
                           '${r.id}',
@@ -619,13 +793,16 @@ function render() {
                       >
                         Marcar revisado
                       </button>
+
                     `
+
                     : ""
                 }
 
 
                 ${
                   r.estado === "revisado"
+
                     ? `
 
                       <select
@@ -641,6 +818,7 @@ function render() {
                           tecnicos
                             .map(
                               t => `
+
                                 <option
                                   value="${t.id}"
                                 >
@@ -648,6 +826,7 @@ function render() {
                                     t.nombre
                                   )}
                                 </option>
+
                               `
                             )
                             .join("")
@@ -665,12 +844,14 @@ function render() {
                       </button>
 
                     `
+
                     : ""
                 }
 
 
                 ${
                   r.estado === "solucionado"
+
                     ? `
 
                       <button
@@ -694,6 +875,7 @@ function render() {
                       </button>
 
                     `
+
                     : ""
                 }
 
@@ -706,6 +888,7 @@ function render() {
                   ].includes(
                     r.estado
                   )
+
                     ? `
 
                       <button
@@ -719,6 +902,7 @@ function render() {
                       </button>
 
                     `
+
                     : ""
                 }
 

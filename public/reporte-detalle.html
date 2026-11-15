@@ -3,11 +3,13 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
 
-  <title>
-    Detalle del reporte
-  </title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Detalle del reporte</title>
 
   <link
     rel="stylesheet"
@@ -18,6 +20,7 @@
 <body>
 
 <header>
+
   <strong>
     AulaFix ULEAM
   </strong>
@@ -42,6 +45,7 @@
     </a>
 
   </nav>
+
 </header>
 
 
@@ -54,9 +58,22 @@
 </div>
 
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<!-- FIREBASE -->
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
+></script>
+
+
+<!-- ARCHIVOS DEL PROYECTO -->
 
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
@@ -68,514 +85,1022 @@
 
 <script>
 
+/* =========================================================
+   ID DEL REPORTE
+========================================================= */
+
 const id =
   new URLSearchParams(
-    location.search
+    window.location.search
   ).get("id");
 
 
-function esc(s) {
+/* =========================================================
+   ESCAPAR TEXTO
+========================================================= */
+
+function esc(valor) {
 
   return String(
-    s ?? ""
+    valor ?? ""
   ).replace(
+
     /[&<>"']/g,
-    m => ({
+
+    caracter => ({
+
       "&": "&amp;",
       "<": "&lt;",
       ">": "&gt;",
       '"': "&quot;",
       "'": "&#039;"
-    }[m])
+
+    }[caracter])
   );
 }
 
 
-function fecha(v) {
+/* =========================================================
+   CONVERTIR FECHA
+========================================================= */
 
-  return v
-    ? new Date(
-        v
-      ).toLocaleString()
-    : "";
+function convertirFecha(valor) {
+
+  if (!valor) {
+    return null;
+  }
+
+
+  if (
+    typeof valor.toDate === "function"
+  ) {
+
+    return valor.toDate();
+  }
+
+
+  if (
+    valor.seconds !== undefined
+  ) {
+
+    return new Date(
+      valor.seconds * 1000
+    );
+  }
+
+
+  const resultado =
+    new Date(valor);
+
+
+  if (
+    Number.isNaN(
+      resultado.getTime()
+    )
+  ) {
+
+    return null;
+  }
+
+
+  return resultado;
 }
 
 
-async function iniciarPagina() {
+/* =========================================================
+   FORMATEAR FECHA
+========================================================= */
 
-  await inicializarNotificacionesUI();
+function fecha(valor) {
+
+  const resultado =
+    convertirFecha(valor);
 
 
-  const r =
-    await obtenerReporte(
-      id
+  if (!resultado) {
+    return "";
+  }
+
+
+  return resultado.toLocaleString();
+}
+
+
+/* =========================================================
+   OBTENER ÚLTIMA FECHA DE SOLUCIÓN
+========================================================= */
+
+function obtenerFechaResolucion(reporte) {
+
+  const historial =
+    Array.isArray(
+      reporte.historial
+    )
+      ? reporte.historial
+      : [];
+
+
+  const soluciones =
+    historial.filter(
+
+      item =>
+        item.estado ===
+        "solucionado"
     );
 
 
-  if (!r) {
+  if (
+    soluciones.length > 0
+  ) {
+
+    const ultimaSolucion =
+      soluciones[
+        soluciones.length - 1
+      ];
+
+
+    return convertirFecha(
+      ultimaSolucion.fecha
+    );
+  }
+
+
+  const cierres =
+    historial.filter(
+
+      item =>
+        item.estado ===
+        "cerrado"
+    );
+
+
+  if (
+    cierres.length > 0
+  ) {
+
+    const ultimoCierre =
+      cierres[
+        cierres.length - 1
+      ];
+
+
+    return convertirFecha(
+      ultimoCierre.fecha
+    );
+  }
+
+
+  return null;
+}
+
+
+/* =========================================================
+   ESTADO SLA
+========================================================= */
+
+function obtenerEstadoSLA(reporte) {
+
+  if (!reporte.vence_en) {
+
+    return {
+
+      texto:
+        "SIN SLA",
+
+      clase:
+        "badge"
+
+    };
+  }
+
+
+  if (
+    reporte.estado ===
+    "rechazado"
+  ) {
+
+    return {
+
+      texto:
+        "RECHAZADO",
+
+      clase:
+        "badge"
+
+    };
+  }
+
+
+  const vence =
+    convertirFecha(
+      reporte.vence_en
+    );
+
+
+  if (!vence) {
+
+    return {
+
+      texto:
+        "SIN SLA",
+
+      clase:
+        "badge"
+
+    };
+  }
+
+
+  /* =====================================================
+     REPORTES SOLUCIONADOS O CERRADOS
+  ===================================================== */
+
+  if (
+    reporte.estado === "solucionado" ||
+    reporte.estado === "cerrado"
+  ) {
+
+    const fechaResolucion =
+      obtenerFechaResolucion(
+        reporte
+      );
+
+
+    if (!fechaResolucion) {
+
+      return {
+
+        texto:
+          "FINALIZADO",
+
+        clase:
+          "badge"
+
+      };
+    }
+
+
+    if (
+      fechaResolucion <= vence
+    ) {
+
+      return {
+
+        texto:
+          "CUMPLIDO",
+
+        clase:
+          "badge priority-baja"
+
+      };
+    }
+
+
+    return {
+
+      texto:
+        "FUERA DE SLA",
+
+      clase:
+        "badge priority-urgente"
+
+    };
+  }
+
+
+  /* =====================================================
+     REPORTES ACTIVOS
+  ===================================================== */
+
+  const ahora =
+    new Date();
+
+
+  const diferencia =
+    vence.getTime() -
+    ahora.getTime();
+
+
+  if (
+    diferencia <= 0
+  ) {
+
+    return {
+
+      texto:
+        "VENCIDO",
+
+      clase:
+        "badge priority-urgente"
+
+    };
+  }
+
+
+  if (
+    diferencia <=
+    60 * 60 * 1000
+  ) {
+
+    return {
+
+      texto:
+        "PRÓXIMO A VENCER",
+
+      clase:
+        "badge priority-media"
+
+    };
+  }
+
+
+  return {
+
+    texto:
+      "A TIEMPO",
+
+    clase:
+      "badge priority-baja"
+
+  };
+}
+
+
+/* =========================================================
+   CREAR HISTORIAL
+========================================================= */
+
+function crearHistorial(reporte) {
+
+  const historial =
+    Array.isArray(
+      reporte.historial
+    )
+      ? reporte.historial
+      : [];
+
+
+  if (
+    historial.length === 0
+  ) {
+
+    return `
+      <p class="small">
+        Sin historial.
+      </p>
+    `;
+  }
+
+
+  return historial
+    .map(
+
+      item => `
+
+        <div class="item">
+
+          <b>
+            ${esc(
+              item.estado ||
+              "Sin estado"
+            )}
+          </b>
+
+          <div class="small">
+
+            ${esc(
+              item.usuario ||
+              "Sistema"
+            )}
+
+            ·
+
+            ${fecha(
+              item.fecha
+            )}
+
+          </div>
+
+          ${
+            item.nota
+
+              ? `
+                <div>
+                  ${esc(
+                    item.nota
+                  )}
+                </div>
+              `
+
+              : ""
+          }
+
+        </div>
+
+      `
+    )
+    .join("");
+}
+
+
+/* =========================================================
+   CREAR COMENTARIOS
+========================================================= */
+
+function crearComentarios(reporte) {
+
+  const comentarios =
+    Array.isArray(
+      reporte.comentarios
+    )
+      ? reporte.comentarios
+      : [];
+
+
+  if (
+    comentarios.length === 0
+  ) {
+
+    return `
+      <p class="small">
+        Sin comentarios.
+      </p>
+    `;
+  }
+
+
+  return comentarios
+    .map(
+
+      comentario => `
+
+        <div class="card">
+
+          <b>
+            ${esc(
+              comentario.usuario_nombre ||
+              "Usuario"
+            )}
+          </b>
+
+          <span class="small">
+
+            ${
+              comentario.rol
+
+                ? `(${esc(
+                    comentario.rol
+                  )})`
+
+                : ""
+            }
+
+            ·
+
+            ${fecha(
+              comentario.fecha
+            )}
+
+          </span>
+
+          <div>
+            ${esc(
+              comentario.texto ||
+              ""
+            )}
+          </div>
+
+        </div>
+
+      `
+    )
+    .join("");
+}
+
+
+/* =========================================================
+   INICIAR PÁGINA
+========================================================= */
+
+async function iniciarPagina() {
+
+  const contenido =
+    document.getElementById(
+      "contenido"
+    );
+
+
+  if (!id) {
 
     contenido.innerHTML = `
+
       <div class="notice error">
-        Reporte no encontrado.
+        No se especificó un reporte.
       </div>
+
     `;
 
     return;
   }
 
 
-  const hist =
-    (
-      r.historial ||
-      []
-    )
-      .map(
-        h => `
-          <div class="item">
+  try {
 
-            <b>
-              ${esc(h.estado)}
-            </b>
+    await inicializarNotificacionesUI();
 
-            <div class="small">
 
-              ${esc(h.usuario)}
-              ·
-              ${fecha(h.fecha)}
+    const reporte =
+      await obtenerReporte(id);
 
-            </div>
 
-            <div>
-              ${esc(h.nota)}
-            </div>
+    if (!reporte) {
 
-          </div>
-        `
-      )
-      .join("");
+      contenido.innerHTML = `
 
+        <div class="notice error">
+          Reporte no encontrado.
+        </div>
 
-  const com =
-    (
-      r.comentarios ||
-      []
-    )
-      .map(
-        c => `
-          <div class="card">
+      `;
 
-            <b>
-              ${esc(
-                c.usuario_nombre
-              )}
-            </b>
+      return;
+    }
 
-            <span class="small">
 
-              (${esc(c.rol)})
-              ·
-              ${fecha(c.fecha)}
+    const estadoSLA =
+      obtenerEstadoSLA(
+        reporte
+      );
 
-            </span>
 
-            <div>
-              ${esc(c.texto)}
-            </div>
+    const fechaVencimiento =
+      convertirFecha(
+        reporte.vence_en
+      );
 
-          </div>
-        `
-      )
-      .join("");
 
+    const historialHTML =
+      crearHistorial(
+        reporte
+      );
 
-  contenido.innerHTML = `
 
-    <div class="card">
+    const comentariosHTML =
+      crearComentarios(
+        reporte
+      );
 
-      <h1>
-        ${esc(r.titulo)}
-      </h1>
 
+    const ubicacion =
+      reporte.ubicacion || {};
 
-      <p>
-        <b>Ticket:</b>
 
-        ${esc(
-          r.ticket ||
-          "Sin ticket"
-        )}
-      </p>
-
-
-      <p>
-        <b>SLA:</b>
-
-        ${
-          r.sla_horas ||
-          "-"
-        }
-        horas
-      </p>
-
-
-      <p>
-        <b>Vence:</b>
-
-        ${
-          r.vence_en?.toDate
-            ? r.vence_en
-                .toDate()
-                .toLocaleString()
-            : "Sin fecha"
-        }
-      </p>
-
-
-      <p>
-
-        <b>
-          Estado SLA:
-        </b>
-
-        <span
-          id="estado-sla"
-        ></span>
-
-      </p>
-
-
-      <p>
-
-        <span class="badge status">
-          ${esc(r.estado)}
-        </span>
-
-        <span
-          class="
-          badge
-          priority-${esc(
-            r.prioridad
-          )}
-          "
-        >
-          ${esc(
-            r.prioridad
-          )}
-        </span>
-
-      </p>
-
-
-      <p>
-        ${esc(
-          r.descripcion
-        )}
-      </p>
-
-
-      <p>
-
-        <b>
-          Categoría:
-        </b>
-
-        ${esc(
-          r.categoria
-        )}
-
-      </p>
-
-
-      <p>
-
-        <b>
-          Ubicación:
-        </b>
-
-        ${esc(
-          r.ubicacion?.facultad
-        )}
-
-        ·
-
-        ${esc(
-          r.ubicacion?.bloque
-        )}
-
-        · piso
-
-        ${esc(
-          r.ubicacion?.piso
-        )}
-
-        ·
-
-        ${esc(
-          r.ubicacion?.aula
-        )}
-
-      </p>
-
-
-      <p>
-
-        <b>
-          Técnico:
-        </b>
-
-        ${esc(
-          r.tecnico_nombre ||
-          "Sin asignar"
-        )}
-
-      </p>
-
-
-      ${
-        r.imagen_inicial_url
-          ? `
-
-            <h3>
-              Evidencia inicial
-            </h3>
-
-            <img
-              class="preview"
-              src="${r.imagen_inicial_url}"
-              alt="Evidencia inicial del reporte"
-            >
-
-          `
-          : ""
-      }
-
-
-      ${
-        r.evidencia_final_url
-          ? `
-
-            <h3>
-              Evidencia final
-            </h3>
-
-            <img
-              class="preview"
-              src="${r.evidencia_final_url}"
-              alt="Evidencia final del reporte"
-            >
-
-          `
-          : ""
-      }
-
-    </div>
-
-
-    <div class="grid">
+    contenido.innerHTML = `
 
       <div class="card">
 
-        <h2>
-          Historial
-        </h2>
+        <h1>
+          ${esc(
+            reporte.titulo ||
+            "Reporte"
+          )}
+        </h1>
 
-        <div class="timeline">
+
+        <p>
+
+          <b>
+            Ticket:
+          </b>
+
+          ${esc(
+            reporte.ticket ||
+            "Sin ticket"
+          )}
+
+        </p>
+
+
+        <p>
+
+          <b>
+            SLA:
+          </b>
 
           ${
-            hist ||
-            "Sin historial"
+            reporte.sla_horas ??
+            "-"
+          }
+          horas
+
+        </p>
+
+
+        <p>
+
+          <b>
+            Vence:
+          </b>
+
+          ${
+            fechaVencimiento
+
+              ? fechaVencimiento
+                  .toLocaleString()
+
+              : "Sin fecha"
           }
 
-        </div>
+        </p>
+
+
+        <p>
+
+          <b>
+            Estado SLA:
+          </b>
+
+          <span
+            class="${estadoSLA.clase}"
+          >
+            ${esc(
+              estadoSLA.texto
+            )}
+          </span>
+
+        </p>
+
+
+        <p>
+
+          <span
+            class="badge status"
+          >
+            ${esc(
+              reporte.estado ||
+              "Sin estado"
+            )}
+          </span>
+
+
+          <span
+            class="
+              badge
+              priority-${esc(
+                reporte.prioridad ||
+                ""
+              )}
+            "
+          >
+            ${esc(
+              reporte.prioridad ||
+              "Sin prioridad"
+            )}
+          </span>
+
+        </p>
+
+
+        <p>
+          ${esc(
+            reporte.descripcion ||
+            ""
+          )}
+        </p>
+
+
+        <p>
+
+          <b>
+            Categoría:
+          </b>
+
+          ${esc(
+            reporte.categoria ||
+            "Sin categoría"
+          )}
+
+        </p>
+
+
+        <p>
+
+          <b>
+            Ubicación:
+          </b>
+
+          ${esc(
+            ubicacion.facultad ||
+            "-"
+          )}
+
+          ·
+
+          ${esc(
+            ubicacion.bloque ||
+            "-"
+          )}
+
+          · piso
+
+          ${esc(
+            ubicacion.piso ||
+            "-"
+          )}
+
+          ·
+
+          ${esc(
+            ubicacion.aula ||
+            "-"
+          )}
+
+        </p>
+
+
+        <p>
+
+          <b>
+            Técnico:
+          </b>
+
+          ${esc(
+            reporte.tecnico_nombre ||
+            "Sin asignar"
+          )}
+
+        </p>
+
+
+        ${
+          reporte.imagen_inicial_url
+
+            ? `
+
+              <div
+                style="margin-top:20px"
+              >
+
+                <h3>
+                  Evidencia inicial
+                </h3>
+
+                <img
+                  class="preview"
+                  src="${esc(
+                    reporte.imagen_inicial_url
+                  )}"
+                  alt="Evidencia inicial del reporte"
+                >
+
+              </div>
+
+            `
+
+            : ""
+        }
+
+
+        ${
+          reporte.evidencia_final_url
+
+            ? `
+
+              <div
+                style="margin-top:20px"
+              >
+
+                <h3>
+                  Evidencia final
+                </h3>
+
+                <img
+                  class="preview"
+                  src="${esc(
+                    reporte.evidencia_final_url
+                  )}"
+                  alt="Evidencia final del reporte"
+                >
+
+              </div>
+
+            `
+
+            : ""
+        }
 
       </div>
 
 
-      <div>
+      <div class="grid">
+
 
         <div class="card">
 
           <h2>
-            Comentarios
+            Historial
           </h2>
 
-          ${
-            com ||
-            `
-              <p class="small">
-                Sin comentarios.
-              </p>
-            `
-          }
+          <div class="timeline">
+
+            ${historialHTML}
+
+          </div>
 
         </div>
 
 
-        <div class="card">
+        <div>
 
-          <form id="fcom">
 
-            <label for="txt">
-              Nuevo comentario
-            </label>
+          <div class="card">
 
-            <textarea
-              id="txt"
-              required
-              minlength="2"
-            ></textarea>
+            <h2>
+              Comentarios
+            </h2>
 
-            <button
-              type="submit"
-            >
-              Agregar
-            </button>
+            ${comentariosHTML}
 
-          </form>
+          </div>
+
+
+          <div class="card">
+
+            <form id="fcom">
+
+              <label for="txt">
+                Nuevo comentario
+              </label>
+
+              <textarea
+                id="txt"
+                required
+                minlength="2"
+                maxlength="1000"
+                placeholder="Escribe un comentario..."
+              ></textarea>
+
+
+              <button
+                type="submit"
+              >
+                Agregar
+              </button>
+
+            </form>
+
+          </div>
+
 
         </div>
+
 
       </div>
 
-    </div>
-  `;
+    `;
 
 
-  /* =========================
-     SLA
-  ========================= */
+    /* =====================================================
+       FORMULARIO DE COMENTARIOS
+    ===================================================== */
 
-  const estadoSla =
-    document.getElementById(
-      "estado-sla"
-    );
-
-
-  if (
-    r.vence_en?.toDate
-  ) {
-
-    const vence =
-      r.vence_en.toDate();
-
-    const ahora =
-      new Date();
-
-    const diferencia =
-      vence - ahora;
+    const formularioComentario =
+      document.getElementById(
+        "fcom"
+      );
 
 
-    if (
-      r.estado === "cerrado" ||
-      r.estado === "solucionado"
-    ) {
-
-      estadoSla.textContent =
-        "FINALIZADO";
-
-      estadoSla.className =
-        "badge status";
-
-    } else if (
-      diferencia <= 0
-    ) {
-
-      estadoSla.textContent =
-        "VENCIDO";
-
-      estadoSla.className =
-        "badge priority-urgente";
-
-    } else if (
-      diferencia <=
-      60 * 60 * 1000
-    ) {
-
-      estadoSla.textContent =
-        "PRÓXIMO A VENCER";
-
-      estadoSla.className =
-        "badge priority-media";
-
-    } else {
-
-      estadoSla.textContent =
-        "A TIEMPO";
-
-      estadoSla.className =
-        "badge priority-baja";
-    }
-
-  } else {
-
-    estadoSla.textContent =
-      "SIN SLA";
-
-    estadoSla.className =
-      "badge";
-  }
+    const txt =
+      document.getElementById(
+        "txt"
+      );
 
 
-  /* =========================
-     COMENTARIO
-  ========================= */
+    formularioComentario
+      .addEventListener(
 
-  const formularioComentario =
-    document.getElementById(
-      "fcom"
-    );
+        "submit",
 
-  const txt =
-    document.getElementById(
-      "txt"
-    );
+        async evento => {
+
+          evento.preventDefault();
 
 
-  formularioComentario.addEventListener(
-    "submit",
-    async e => {
+          const texto =
+            txt.value.trim();
 
-      e.preventDefault();
 
-      const texto =
-        txt.value.trim();
+          if (
+            texto.length < 2
+          ) {
 
-      if (!texto) {
-        return;
-      }
+            alert(
+              "El comentario debe tener al menos 2 caracteres."
+            );
 
-      try {
-
-        await agregarComentario(
-          id,
-          r,
-          texto,
-          {
-            uid:
-              usuarioActual.uid,
-
-            nombre:
-              perfilActual.nombre,
-
-            rol:
-              perfilActual.rol
+            return;
           }
-        );
 
-        await iniciarPagina();
 
-      } catch (error) {
+          const boton =
+            formularioComentario
+              .querySelector(
+                "button[type='submit']"
+              );
 
-        console.error(error);
 
-        alert(
-          "No se pudo agregar el comentario."
-        );
-      }
-    }
-  );
+          boton.disabled =
+            true;
+
+
+          const textoOriginal =
+            boton.textContent;
+
+
+          boton.textContent =
+            "Guardando...";
+
+
+          try {
+
+            await agregarComentario(
+
+              id,
+
+              reporte,
+
+              texto,
+
+              {
+
+                uid:
+                  usuarioActual.uid,
+
+                nombre:
+                  perfilActual.nombre,
+
+                rol:
+                  perfilActual.rol
+
+              }
+            );
+
+
+            await iniciarPagina();
+
+
+          } catch (error) {
+
+            console.error(
+              "Error al agregar comentario:",
+              error
+            );
+
+
+            alert(
+              "No se pudo agregar el comentario."
+            );
+
+
+            boton.disabled =
+              false;
+
+
+            boton.textContent =
+              textoOriginal;
+          }
+        }
+      );
+
+
+  } catch (error) {
+
+    console.error(
+      "Error cargando reporte:",
+      error
+    );
+
+
+    contenido.innerHTML = `
+
+      <div class="notice error">
+
+        No se pudo cargar el reporte.
+
+        <br><br>
+
+        Intenta actualizar la página.
+
+      </div>
+
+    `;
+  }
 }
 
+
+/* =========================================================
+   SEGURIDAD
+========================================================= */
 
 protegerPagina([
   "usuario",
@@ -585,4 +1110,5 @@ protegerPagina([
 </script>
 
 </body>
+
 </html>

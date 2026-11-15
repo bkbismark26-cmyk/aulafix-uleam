@@ -11,12 +11,16 @@
 
   <title>Dashboard - AulaFix ULEAM</title>
 
-  <link rel="stylesheet" href="/css/style.css">
+  <link
+    rel="stylesheet"
+    href="/css/style.css"
+  >
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
+
     .chart-box {
       position: relative;
       height: 320px;
@@ -35,13 +39,17 @@
     .ranking-table table {
       min-width: 700px;
     }
+
   </style>
 </head>
 
 <body>
 
 <header>
-  <strong>AulaFix · Administración</strong>
+
+  <strong>
+    AulaFix · Administración
+  </strong>
 
   <nav>
 
@@ -67,12 +75,15 @@
     </a>
 
   </nav>
+
 </header>
 
 
 <div class="container">
 
-  <h1>Dashboard</h1>
+  <h1>
+    Dashboard
+  </h1>
 
   <p class="small">
     Resumen general del sistema de incidencias AulaFix ULEAM.
@@ -187,9 +198,18 @@
 
 <!-- FIREBASE -->
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
+></script>
+
 
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
@@ -211,21 +231,27 @@ let chartPrioridad = null;
 
 function esc(s) {
 
-  return String(s ?? "").replace(
+  return String(
+    s ?? ""
+  ).replace(
+
     /[&<>"']/g,
+
     m => ({
+
       "&": "&amp;",
       "<": "&lt;",
       ">": "&gt;",
       '"': "&quot;",
       "'": "&#039;"
+
     }[m])
   );
 }
 
 
 /* ==================================
-   FIRESTORE TIMESTAMP -> DATE
+   CONVERTIR FECHA
 ================================== */
 
 function convertirFecha(valor) {
@@ -234,14 +260,26 @@ function convertirFecha(valor) {
     return null;
   }
 
-  if (valor.toDate) {
+  if (
+    typeof valor.toDate === "function"
+  ) {
+
     return valor.toDate();
+  }
+
+  if (
+    valor.seconds !== undefined
+  ) {
+
+    return new Date(
+      valor.seconds * 1000
+    );
   }
 
   const fecha =
     new Date(valor);
 
-  return isNaN(
+  return Number.isNaN(
     fecha.getTime()
   )
     ? null
@@ -256,35 +294,55 @@ function convertirFecha(valor) {
 function obtenerFechaResolucion(reporte) {
 
   const historial =
-    reporte.historial || [];
+    Array.isArray(
+      reporte.historial
+    )
+      ? reporte.historial
+      : [];
 
 
-  const solucion =
-    historial.find(
+  const soluciones =
+    historial.filter(
       h =>
         h.estado === "solucionado"
     );
 
 
-  if (solucion) {
+  if (
+    soluciones.length > 0
+  ) {
+
+    const ultimaSolucion =
+      soluciones[
+        soluciones.length - 1
+      ];
+
 
     return convertirFecha(
-      solucion.fecha
+      ultimaSolucion.fecha
     );
   }
 
 
-  const cierre =
-    historial.find(
+  const cierres =
+    historial.filter(
       h =>
         h.estado === "cerrado"
     );
 
 
-  if (cierre) {
+  if (
+    cierres.length > 0
+  ) {
+
+    const ultimoCierre =
+      cierres[
+        cierres.length - 1
+      ];
+
 
     return convertirFecha(
-      cierre.fecha
+      ultimoCierre.fecha
     );
   }
 
@@ -299,7 +357,7 @@ function obtenerFechaResolucion(reporte) {
 
 function cumpleSLA(reporte) {
 
-  if (!reporte.vence_en?.toDate) {
+  if (!reporte.vence_en) {
     return null;
   }
 
@@ -307,18 +365,22 @@ function cumpleSLA(reporte) {
   if (
     reporte.estado === "rechazado"
   ) {
+
     return null;
   }
 
 
   const fechaLimite =
-    reporte.vence_en.toDate();
+    convertirFecha(
+      reporte.vence_en
+    );
 
 
-  /*
-    Si ya fue solucionado o cerrado,
-    usamos la fecha real de resolución.
-  */
+  if (!fechaLimite) {
+    return null;
+  }
+
+
   if (
     reporte.estado === "solucionado" ||
     reporte.estado === "cerrado"
@@ -342,10 +404,6 @@ function cumpleSLA(reporte) {
   }
 
 
-  /*
-    Si sigue activo,
-    comparamos con la hora actual.
-  */
   return (
     new Date() <=
     fechaLimite
@@ -359,7 +417,7 @@ function cumpleSLA(reporte) {
 
 function estaVencido(reporte) {
 
-  if (!reporte.vence_en?.toDate) {
+  if (!reporte.vence_en) {
     return false;
   }
 
@@ -367,18 +425,22 @@ function estaVencido(reporte) {
   if (
     reporte.estado === "rechazado"
   ) {
+
     return false;
   }
 
 
   const fechaLimite =
-    reporte.vence_en.toDate();
+    convertirFecha(
+      reporte.vence_en
+    );
 
 
-  /*
-    Si terminó, comprobamos
-    cuándo fue solucionado.
-  */
+  if (!fechaLimite) {
+    return false;
+  }
+
+
   if (
     reporte.estado === "solucionado" ||
     reporte.estado === "cerrado"
@@ -402,10 +464,6 @@ function estaVencido(reporte) {
   }
 
 
-  /*
-    Si sigue activo,
-    se compara con la hora actual.
-  */
   return (
     new Date() >
     fechaLimite
@@ -419,11 +477,14 @@ function estaVencido(reporte) {
 
 function obtenerEstadoSLA(reporte) {
 
-  if (!reporte.vence_en?.toDate) {
+  if (!reporte.vence_en) {
 
     return {
-      texto: "SIN SLA",
-      clase: "badge"
+      texto:
+        "SIN SLA",
+
+      clase:
+        "badge"
     };
   }
 
@@ -433,8 +494,29 @@ function obtenerEstadoSLA(reporte) {
   ) {
 
     return {
-      texto: "RECHAZADO",
-      clase: "badge"
+      texto:
+        "RECHAZADO",
+
+      clase:
+        "badge"
+    };
+  }
+
+
+  const vence =
+    convertirFecha(
+      reporte.vence_en
+    );
+
+
+  if (!vence) {
+
+    return {
+      texto:
+        "SIN SLA",
+
+      clase:
+        "badge"
     };
   }
 
@@ -455,8 +537,11 @@ function obtenerEstadoSLA(reporte) {
     ) {
 
       return {
-        texto: "CUMPLIDO",
-        clase: "badge priority-baja"
+        texto:
+          "CUMPLIDO",
+
+        clase:
+          "badge priority-baja"
       };
     }
 
@@ -466,21 +551,27 @@ function obtenerEstadoSLA(reporte) {
     ) {
 
       return {
-        texto: "FUERA DE SLA",
-        clase: "badge priority-urgente"
+        texto:
+          "FUERA DE SLA",
+
+        clase:
+          "badge priority-urgente"
       };
     }
 
 
     return {
-      texto: "FINALIZADO",
-      clase: "badge status"
+      texto:
+        "FINALIZADO",
+
+      clase:
+        "badge status"
     };
   }
 
 
   const diferencia =
-    reporte.vence_en.toDate() -
+    vence -
     new Date();
 
 
@@ -489,8 +580,11 @@ function obtenerEstadoSLA(reporte) {
   ) {
 
     return {
-      texto: "VENCIDO",
-      clase: "badge priority-urgente"
+      texto:
+        "VENCIDO",
+
+      clase:
+        "badge priority-urgente"
     };
   }
 
@@ -501,15 +595,21 @@ function obtenerEstadoSLA(reporte) {
   ) {
 
     return {
-      texto: "PRÓXIMO A VENCER",
-      clase: "badge priority-media"
+      texto:
+        "PRÓXIMO A VENCER",
+
+      clase:
+        "badge priority-media"
     };
   }
 
 
   return {
-    texto: "A TIEMPO",
-    clase: "badge priority-baja"
+    texto:
+      "A TIEMPO",
+
+    clase:
+      "badge priority-baja"
   };
 }
 
@@ -536,6 +636,7 @@ function calcularTiempoResolucion(reporte) {
     !inicio ||
     !fin
   ) {
+
     return null;
   }
 
@@ -547,6 +648,7 @@ function calcularTiempoResolucion(reporte) {
   if (
     diferencia < 0
   ) {
+
     return null;
   }
 
@@ -565,6 +667,7 @@ function formatearDuracion(ms) {
     ms === null ||
     ms === undefined
   ) {
+
     return "-";
   }
 
@@ -699,6 +802,7 @@ async function iniciarPagina() {
       data
         .map(
           reporte => ({
+
             reporte,
 
             cumple:
@@ -768,17 +872,31 @@ async function iniciarPagina() {
         : null;
 
 
+    /* ==============================
+       TÉCNICOS CON TAREAS ACTIVAS
+    ============================== */
+
     const tecnicosActivos =
       new Set(
+
         data
           .filter(
-            r =>
-              r.tecnico_id
+            reporte =>
+
+              reporte.tecnico_id &&
+
+              [
+                "asignado",
+                "en_proceso"
+              ].includes(
+                reporte.estado
+              )
           )
           .map(
-            r =>
-              r.tecnico_id
+            reporte =>
+              reporte.tecnico_id
           )
+
       ).size;
 
 
@@ -906,11 +1024,15 @@ async function iniciarPagina() {
       <div class="card">
 
         <div class="small">
-          Técnicos con tareas
+          Técnicos con tareas activas
         </div>
 
         <div class="metric">
           ${tecnicosActivos}
+        </div>
+
+        <div class="metric-sub">
+          asignado o en proceso
         </div>
 
       </div>
@@ -924,24 +1046,31 @@ async function iniciarPagina() {
 
     const prioridades = {
 
-      baja: 0,
-      media: 0,
-      alta: 0,
-      urgente: 0
+      baja:
+        0,
+
+      media:
+        0,
+
+      alta:
+        0,
+
+      urgente:
+        0
     };
 
 
     data.forEach(
-      r => {
+      reporte => {
 
         if (
           prioridades[
-            r.prioridad
+            reporte.prioridad
           ] !== undefined
         ) {
 
           prioridades[
-            r.prioridad
+            reporte.prioridad
           ]++;
         }
       }
@@ -960,9 +1089,11 @@ async function iniciarPagina() {
 
     chartEstados =
       new Chart(
+
         document.getElementById(
           "graficoEstados"
         ),
+
         {
 
           type:
@@ -971,6 +1102,7 @@ async function iniciarPagina() {
           data: {
 
             labels: [
+
               "Pendiente",
               "Revisado",
               "Asignado",
@@ -978,11 +1110,15 @@ async function iniciarPagina() {
               "Solucionado",
               "Cerrado",
               "Rechazado"
+
             ],
 
             datasets: [
+
               {
+
                 data: [
+
                   contador.pendiente,
                   contador.revisado,
                   contador.asignado,
@@ -990,10 +1126,13 @@ async function iniciarPagina() {
                   contador.solucionado,
                   contador.cerrado,
                   contador.rechazado
+
                 ]
               }
+
             ]
           },
+
 
           options: {
 
@@ -1006,8 +1145,10 @@ async function iniciarPagina() {
             plugins: {
 
               legend: {
+
                 position:
                   "bottom"
+
               }
             }
           }
@@ -1027,9 +1168,11 @@ async function iniciarPagina() {
 
     chartPrioridad =
       new Chart(
+
         document.getElementById(
           "graficoPrioridad"
         ),
+
         {
 
           type:
@@ -1038,27 +1181,34 @@ async function iniciarPagina() {
           data: {
 
             labels: [
+
               "Baja",
               "Media",
               "Alta",
               "Urgente"
+
             ],
 
             datasets: [
+
               {
 
                 label:
                   "Cantidad de reportes",
 
                 data: [
+
                   prioridades.baja,
                   prioridades.media,
                   prioridades.alta,
                   prioridades.urgente
+
                 ]
               }
+
             ]
           },
+
 
           options: {
 
@@ -1079,6 +1229,7 @@ async function iniciarPagina() {
 
                   precision:
                     0
+
                 }
               }
             }
@@ -1100,6 +1251,7 @@ async function iniciarPagina() {
         if (
           !reporte.tecnico_id
         ) {
+
           return;
         }
 
@@ -1198,6 +1350,7 @@ async function iniciarPagina() {
       )
         .sort(
           (a, b) =>
+
             b.cerrados -
             a.cerrados
         );
@@ -1278,21 +1431,26 @@ async function iniciarPagina() {
 
                         </td>
 
+
                         <td>
                           ${tecnico.asignados}
                         </td>
+
 
                         <td>
                           ${tecnico.activos}
                         </td>
 
+
                         <td>
                           ${tecnico.solucionados}
                         </td>
 
+
                         <td>
                           ${tecnico.cerrados}
                         </td>
+
 
                         <td>
                           ${formatearDuracion(
@@ -1365,6 +1523,7 @@ async function iniciarPagina() {
 
 
     categorias.innerHTML =
+
       categoriasOrdenadas.length
 
         ? `
@@ -1442,6 +1601,7 @@ async function iniciarPagina() {
 
 
     recientes.innerHTML =
+
       ultimos.length
 
         ? ultimos
@@ -1500,23 +1660,27 @@ async function iniciarPagina() {
                       <div>
 
                         <span class="badge status">
+
                           ${esc(
                             reporte.estado
                           )}
+
                         </span>
 
 
                         <span
                           class="
-                          badge
-                          priority-${esc(
-                            reporte.prioridad
-                          )}
+                            badge
+                            priority-${esc(
+                              reporte.prioridad
+                            )}
                           "
                         >
+
                           ${esc(
                             reporte.prioridad
                           )}
+
                         </span>
 
 
@@ -1578,4 +1742,5 @@ protegerPagina([
 </script>
 
 </body>
+
 </html>
