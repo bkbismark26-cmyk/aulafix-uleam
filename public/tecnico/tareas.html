@@ -3,50 +3,84 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
   <title>Mis tareas</title>
-  <link rel="stylesheet" href="/css/style.css">
+
+  <link
+    rel="stylesheet"
+    href="/css/style.css"
+  >
 </head>
 
 <body>
 
 <header>
-  <strong>AulaFix · Técnico</strong>
+
+  <strong>
+    AulaFix · Técnico
+  </strong>
 
   <nav>
+
     <a href="/tecnico/tareas.html">
       Mis tareas
     </a>
 
     <span data-user-name></span>
 
-    <a href="#" onclick="cerrarSesion()">
+    <a
+      href="#"
+      onclick="cerrarSesion()"
+    >
       Salir
     </a>
+
   </nav>
+
 </header>
+
 
 <div class="container">
 
   <div class="card">
 
-    <h1>Mis tareas</h1>
+    <h1>
+      Mis tareas
+    </h1>
 
     <p class="small">
-      Incidencias asignadas a tu cuenta.
+      Incidencias asignadas a tu cuenta que requieren atención.
     </p>
 
   </div>
 
+
   <div id="lista">
-    Cargando...
+    Cargando tareas...
   </div>
 
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+<!-- FIREBASE -->
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
+></script>
+
 
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
@@ -55,235 +89,970 @@
 <script src="/js/db.js"></script>
 <script src="/js/notifications-ui.js"></script>
 
+
 <script>
 
 let tareas = [];
 
-function esc(s) {
-  return String(s ?? "").replace(
+let procesando =
+  false;
+
+
+/* =========================================================
+   ESCAPAR TEXTO
+========================================================= */
+
+function esc(valor) {
+
+  return String(
+    valor ?? ""
+  ).replace(
+
     /[&<>"']/g,
-    m => ({
+
+    caracter => ({
+
       "&": "&amp;",
       "<": "&lt;",
       ">": "&gt;",
       '"': "&quot;",
       "'": "&#039;"
-    }[m])
+
+    }[caracter])
   );
 }
 
-async function iniciarPagina() {
 
-  await inicializarNotificacionesUI();
+/* =========================================================
+   CONVERTIR FECHA
+========================================================= */
 
-  tareas =
-    await listarTareasTecnico(
-      usuarioActual.uid
+function convertirFecha(valor) {
+
+  if (!valor) {
+    return null;
+  }
+
+
+  if (
+    typeof valor.toDate === "function"
+  ) {
+
+    return valor.toDate();
+  }
+
+
+  if (
+    valor.seconds !== undefined
+  ) {
+
+    return new Date(
+      valor.seconds * 1000
+    );
+  }
+
+
+  const fecha =
+    new Date(valor);
+
+
+  return Number.isNaN(
+    fecha.getTime()
+  )
+    ? null
+    : fecha;
+}
+
+
+/* =========================================================
+   FECHA DE RESOLUCIÓN
+========================================================= */
+
+function obtenerFechaResolucion(reporte) {
+
+  const historial =
+    Array.isArray(
+      reporte.historial
+    )
+      ? reporte.historial
+      : [];
+
+
+  const soluciones =
+    historial.filter(
+      item =>
+        item.estado === "solucionado"
     );
 
-  render();
+
+  if (
+    soluciones.length > 0
+  ) {
+
+    const ultimaSolucion =
+      soluciones[
+        soluciones.length - 1
+      ];
+
+
+    return convertirFecha(
+      ultimaSolucion.fecha
+    );
+  }
+
+
+  return null;
 }
+
+
+/* =========================================================
+   ESTADO SLA
+========================================================= */
+
+function obtenerEstadoSLA(reporte) {
+
+  if (!reporte.vence_en) {
+
+    return {
+      texto: "SIN SLA",
+      clase: "badge"
+    };
+  }
+
+
+  if (
+    reporte.estado === "rechazado"
+  ) {
+
+    return {
+      texto: "RECHAZADO",
+      clase: "badge"
+    };
+  }
+
+
+  const vence =
+    convertirFecha(
+      reporte.vence_en
+    );
+
+
+  if (!vence) {
+
+    return {
+      texto: "SIN SLA",
+      clase: "badge"
+    };
+  }
+
+
+  if (
+    reporte.estado === "solucionado" ||
+    reporte.estado === "cerrado"
+  ) {
+
+    const solucion =
+      obtenerFechaResolucion(
+        reporte
+      );
+
+
+    if (!solucion) {
+
+      return {
+        texto: "FINALIZADO",
+        clase: "badge"
+      };
+    }
+
+
+    if (
+      solucion <= vence
+    ) {
+
+      return {
+        texto: "CUMPLIDO",
+        clase: "badge priority-baja"
+      };
+    }
+
+
+    return {
+      texto: "FUERA DE SLA",
+      clase: "badge priority-urgente"
+    };
+  }
+
+
+  const diferencia =
+    vence.getTime() -
+    Date.now();
+
+
+  if (
+    diferencia <= 0
+  ) {
+
+    return {
+      texto: "VENCIDO",
+      clase: "badge priority-urgente"
+    };
+  }
+
+
+  if (
+    diferencia <=
+    60 * 60 * 1000
+  ) {
+
+    return {
+      texto: "PRÓXIMO A VENCER",
+      clase: "badge priority-media"
+    };
+  }
+
+
+  return {
+    texto: "A TIEMPO",
+    clase: "badge priority-baja"
+  };
+}
+
+
+/* =========================================================
+   VALIDAR EVIDENCIA FINAL
+========================================================= */
+
+function validarImagen(archivo) {
+
+  if (!archivo) {
+
+    throw new Error(
+      "Debes seleccionar una evidencia final."
+    );
+  }
+
+
+  const tiposPermitidos = [
+
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif"
+
+  ];
+
+
+  if (
+    !tiposPermitidos.includes(
+      archivo.type
+    )
+  ) {
+
+    throw new Error(
+      "La evidencia debe ser una imagen JPG, PNG, WEBP o GIF."
+    );
+  }
+
+
+  const maximo =
+    5 * 1024 * 1024;
+
+
+  if (
+    archivo.size >
+    maximo
+  ) {
+
+    throw new Error(
+      "La evidencia supera el tamaño máximo de 5 MB."
+    );
+  }
+}
+
+
+/* =========================================================
+   INICIAR PÁGINA
+========================================================= */
+
+async function iniciarPagina() {
+
+  const lista =
+    document.getElementById(
+      "lista"
+    );
+
+
+  try {
+
+    await inicializarNotificacionesUI();
+
+
+    tareas =
+      await listarTareasTecnico(
+        usuarioActual.uid
+      );
+
+
+    render();
+
+
+  } catch (error) {
+
+    console.error(
+      "Error cargando tareas:",
+      error
+    );
+
+
+    lista.innerHTML = `
+
+      <div class="notice error">
+
+        <strong>
+          No se pudieron cargar tus tareas.
+        </strong>
+
+        <p class="small">
+          Actualiza la página e inténtalo nuevamente.
+        </p>
+
+        <button
+          type="button"
+          onclick="iniciarPagina()"
+        >
+          Reintentar
+        </button>
+
+      </div>
+
+    `;
+  }
+}
+
+
+/* =========================================================
+   RENDER
+========================================================= */
 
 function render() {
 
-  lista.innerHTML =
-    tareas.map(
-      r => `
-        <div class="card">
-
-          <h3>
-            ${esc(r.titulo)}
-          </h3>
-
-          <p>
-
-            <span class="badge status">
-              ${esc(r.estado)}
-            </span>
-
-            <span
-              class="badge priority-${esc(r.prioridad)}"
-            >
-              ${esc(r.prioridad)}
-            </span>
-
-          </p>
-
-          <p>
-            ${esc(r.descripcion)}
-          </p>
-
-          <p>
-            <b>Ubicación:</b>
-            ${esc(r.ubicacion?.facultad)}
-            ·
-            ${esc(r.ubicacion?.bloque)}
-            ·
-            ${esc(r.ubicacion?.piso)}
-            ·
-            ${esc(r.ubicacion?.aula)}
-          </p>
-
-          ${
-            r.imagen_inicial_url
-              ? `
-                <img
-                  class="preview"
-                  src="${r.imagen_inicial_url}"
-                  alt="Evidencia inicial"
-                >
-              `
-              : ""
-          }
-
-          <div class="actions">
-
-            ${
-              r.estado === "asignado"
-                ? `
-                  <button
-                    onclick="cambiar(
-                      '${r.id}',
-                      'en_proceso'
-                    )"
-                  >
-                    Iniciar trabajo
-                  </button>
-                `
-                : ""
-            }
-
-            ${
-              r.estado === "en_proceso"
-                ? `
-                  <button
-                    onclick="resolver('${r.id}')"
-                  >
-                    Marcar solucionado
-                  </button>
-                `
-                : ""
-            }
-
-          </div>
-
-        </div>
-      `
-    ).join("")
-    ||
-    `
-      <div class="notice">
-        No tienes tareas pendientes.
-      </div>
-    `;
-}
-
-async function cambiar(
-  id,
-  nuevo
-) {
-
-  const r =
-    tareas.find(
-      x => x.id === id
+  const lista =
+    document.getElementById(
+      "lista"
     );
 
-  if (!r) {
+
+  if (
+    tareas.length === 0
+  ) {
+
+    lista.innerHTML = `
+
+      <div class="notice">
+
+        <strong>
+          No tienes tareas activas.
+        </strong>
+
+        <p class="small">
+          Cuando un administrador te asigne una incidencia aparecerá aquí.
+        </p>
+
+      </div>
+
+    `;
+
     return;
   }
 
-  const nota =
+
+  lista.innerHTML =
+    tareas
+      .map(
+        reporte => {
+
+          const sla =
+            obtenerEstadoSLA(
+              reporte
+            );
+
+
+          const vence =
+            convertirFecha(
+              reporte.vence_en
+            );
+
+
+          return `
+
+            <div class="card">
+
+              <div
+                class="actions"
+                style="
+                  justify-content:space-between;
+                  align-items:flex-start;
+                "
+              >
+
+                <div>
+
+                  <h3>
+                    ${esc(
+                      reporte.titulo
+                    )}
+                  </h3>
+
+
+                  <p class="small">
+
+                    <b>
+                      Ticket:
+                    </b>
+
+                    ${esc(
+                      reporte.ticket ||
+                      "Sin ticket"
+                    )}
+
+                  </p>
+
+
+                  <p>
+
+                    <span
+                      class="badge status"
+                    >
+                      ${esc(
+                        reporte.estado
+                      )}
+                    </span>
+
+
+                    <span
+                      class="
+                        badge
+                        priority-${esc(
+                          reporte.prioridad
+                        )}
+                      "
+                    >
+                      ${esc(
+                        reporte.prioridad
+                      )}
+                    </span>
+
+
+                    <span
+                      class="${sla.clase}"
+                    >
+                      ${esc(
+                        sla.texto
+                      )}
+                    </span>
+
+                  </p>
+
+                </div>
+
+              </div>
+
+
+              <p>
+                ${esc(
+                  reporte.descripcion
+                )}
+              </p>
+
+
+              <p>
+
+                <b>
+                  Categoría:
+                </b>
+
+                ${esc(
+                  reporte.categoria ||
+                  "Sin categoría"
+                )}
+
+              </p>
+
+
+              <p>
+
+                <b>
+                  Ubicación:
+                </b>
+
+                ${esc(
+                  reporte.ubicacion?.facultad ||
+                  "-"
+                )}
+
+                ·
+
+                ${esc(
+                  reporte.ubicacion?.bloque ||
+                  "-"
+                )}
+
+                · piso
+
+                ${esc(
+                  reporte.ubicacion?.piso ||
+                  "-"
+                )}
+
+                ·
+
+                ${esc(
+                  reporte.ubicacion?.aula ||
+                  "-"
+                )}
+
+              </p>
+
+
+              <div class="grid">
+
+                <div>
+
+                  <b>
+                    SLA:
+                  </b>
+
+                  ${
+                    reporte.sla_horas ??
+                    "-"
+                  }
+                  horas
+
+                </div>
+
+
+                <div>
+
+                  <b>
+                    Vence:
+                  </b>
+
+                  ${
+                    vence
+
+                      ? vence
+                          .toLocaleString()
+
+                      : "Sin fecha"
+                  }
+
+                </div>
+
+
+                <div>
+
+                  <b>
+                    Reportado por:
+                  </b>
+
+                  ${esc(
+                    reporte.creado_por_nombre ||
+                    "Usuario"
+                  )}
+
+                </div>
+
+              </div>
+
+
+              ${
+                reporte.imagen_inicial_url
+
+                  ? `
+
+                    <div
+                      style="margin-top:18px"
+                    >
+
+                      <h4>
+                        Evidencia inicial
+                      </h4>
+
+                      <img
+                        class="preview"
+                        src="${esc(
+                          reporte.imagen_inicial_url
+                        )}"
+                        alt="Evidencia inicial del reporte"
+                      >
+
+                    </div>
+
+                  `
+
+                  : ""
+              }
+
+
+              ${
+                reporte.evidencia_final_url
+
+                  ? `
+
+                    <div
+                      style="margin-top:18px"
+                    >
+
+                      <h4>
+                        Evidencia final
+                      </h4>
+
+                      <img
+                        class="preview"
+                        src="${esc(
+                          reporte.evidencia_final_url
+                        )}"
+                        alt="Evidencia final del reporte"
+                      >
+
+                    </div>
+
+                  `
+
+                  : ""
+              }
+
+
+              <div
+                class="actions"
+                style="margin-top:18px"
+              >
+
+
+                ${
+                  reporte.estado === "asignado"
+
+                    ? `
+
+                      <button
+                        type="button"
+                        onclick="cambiar(
+                          '${reporte.id}',
+                          'en_proceso'
+                        )"
+                      >
+                        Iniciar trabajo
+                      </button>
+
+                    `
+
+                    : ""
+                }
+
+
+                ${
+                  reporte.estado === "en_proceso"
+
+                    ? `
+
+                      <button
+                        type="button"
+                        onclick="resolver(
+                          '${reporte.id}'
+                        )"
+                      >
+                        Marcar solucionado
+                      </button>
+
+                    `
+
+                    : ""
+                }
+
+
+              </div>
+
+            </div>
+
+          `;
+        }
+      )
+      .join("");
+}
+
+
+/* =========================================================
+   CAMBIAR ESTADO
+========================================================= */
+
+async function cambiar(
+  id,
+  nuevoEstado
+) {
+
+  if (procesando) {
+    return;
+  }
+
+
+  const reporte =
+    tareas.find(
+      item =>
+        item.id === id
+    );
+
+
+  if (!reporte) {
+
+    alert(
+      "No se encontró la tarea."
+    );
+
+    return;
+  }
+
+
+  let nota =
     prompt(
-      "Nota:",
+      "Describe brevemente el trabajo que vas a realizar:",
       ""
-    ) || "";
+    );
+
+
+  if (
+    nota === null
+  ) {
+
+    return;
+  }
+
+
+  nota =
+    nota.trim();
+
+
+  if (!nota) {
+
+    nota =
+      "Técnico inició la atención del reporte";
+  }
+
+
+  procesando =
+    true;
+
 
   try {
 
     await cambiarEstadoReporte(
+
       id,
-      r,
-      nuevo,
+
+      reporte,
+
+      nuevoEstado,
+
       nota,
+
       perfilActual.nombre
+
     );
+
 
     await iniciarPagina();
 
+
   } catch (error) {
 
-    console.error(error);
+    console.error(
+      "Error cambiando estado:",
+      error
+    );
+
 
     alert(
-      error.message
+      error.message ||
+      "No se pudo cambiar el estado."
     );
+
+
+  } finally {
+
+    procesando =
+      false;
   }
 }
 
+
+/* =========================================================
+   RESOLVER REPORTE
+========================================================= */
+
 async function resolver(id) {
 
-  const r =
-    tareas.find(
-      x => x.id === id
-    );
-
-  if (!r) {
+  if (procesando) {
     return;
   }
+
+
+  const reporte =
+    tareas.find(
+      item =>
+        item.id === id
+    );
+
+
+  if (!reporte) {
+
+    alert(
+      "No se encontró la tarea."
+    );
+
+    return;
+  }
+
 
   const input =
     document.createElement(
       "input"
     );
 
+
   input.type =
     "file";
 
+
   input.accept =
-    "image/*";
+    "image/jpeg,image/png,image/webp,image/gif";
+
 
   input.onchange =
     async () => {
 
-      if (
-        !input.files[0]
-      ) {
+      const archivo =
+        input.files[0];
+
+
+      if (!archivo) {
         return;
       }
+
+
+      try {
+
+        validarImagen(
+          archivo
+        );
+
+
+      } catch (error) {
+
+        alert(
+          error.message
+        );
+
+        return;
+      }
+
+
+      let nota =
+        prompt(
+          "Describe brevemente la solución realizada:",
+          "Trabajo finalizado"
+        );
+
+
+      if (
+        nota === null
+      ) {
+
+        return;
+      }
+
+
+      nota =
+        nota.trim();
+
+
+      if (!nota) {
+
+        nota =
+          "Trabajo finalizado";
+      }
+
+
+      procesando =
+        true;
+
 
       try {
 
         const url =
           await subirImagenCloudinary(
-            input.files[0]
+            archivo
           );
 
+
         await cambiarEstadoReporte(
+
           id,
-          r,
+
+          reporte,
+
           "solucionado",
-          "Trabajo finalizado",
+
+          nota,
+
           perfilActual.nombre,
+
           {
+
             evidencia_final_url:
               url
+
           }
+
         );
+
+
+        alert(
+          "Reporte marcado como solucionado correctamente."
+        );
+
 
         await iniciarPagina();
 
+
       } catch (error) {
 
-        console.error(error);
+        console.error(
+          "Error solucionando reporte:",
+          error
+        );
+
 
         alert(
-          error.message
+          error.message ||
+          "No se pudo finalizar el reporte."
         );
+
+
+      } finally {
+
+        procesando =
+          false;
       }
     };
 
+
   input.click();
 }
+
+
+/* =========================================================
+   SEGURIDAD
+========================================================= */
 
 protegerPagina([
   "tecnico",
@@ -293,4 +1062,5 @@ protegerPagina([
 </script>
 
 </body>
+
 </html>

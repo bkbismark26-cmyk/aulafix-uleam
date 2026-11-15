@@ -3,15 +3,27 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
   <title>Nuevo reporte</title>
-  <link rel="stylesheet" href="/css/style.css">
+
+  <link
+    rel="stylesheet"
+    href="/css/style.css"
+  >
 </head>
 
 <body>
 
 <header>
-  <strong>AulaFix ULEAM</strong>
+
+  <strong>
+    AulaFix ULEAM
+  </strong>
 
   <nav>
 
@@ -33,6 +45,7 @@
     </a>
 
   </nav>
+
 </header>
 
 
@@ -45,14 +58,17 @@
     </h1>
 
     <p class="small">
-      Describe el problema con suficiente detalle para que pueda ser atendido.
+      Describe el problema con suficiente detalle para que pueda ser atendido correctamente.
     </p>
 
+
     <div id="msg"></div>
+
 
     <form id="form">
 
       <div class="grid">
+
 
         <div>
 
@@ -62,7 +78,10 @@
 
           <input
             id="titulo"
+            type="text"
+            minlength="5"
             maxlength="80"
+            placeholder="Ej. Proyector del aula no enciende"
             required
           >
 
@@ -80,35 +99,39 @@
             required
           >
 
-            <option>
+            <option value="">
+              Selecciona una categoría
+            </option>
+
+            <option value="Equipos tecnológicos">
               Equipos tecnológicos
             </option>
 
-            <option>
+            <option value="Electricidad">
               Electricidad
             </option>
 
-            <option>
+            <option value="Climatización">
               Climatización
             </option>
 
-            <option>
+            <option value="Mobiliario">
               Mobiliario
             </option>
 
-            <option>
+            <option value="Internet/Red">
               Internet/Red
             </option>
 
-            <option>
+            <option value="Limpieza">
               Limpieza
             </option>
 
-            <option>
+            <option value="Infraestructura">
               Infraestructura
             </option>
 
-            <option>
+            <option value="Otro">
               Otro
             </option>
 
@@ -123,25 +146,35 @@
             Prioridad sugerida
           </label>
 
-          <select id="prioridad">
+          <select
+            id="prioridad"
+            required
+          >
 
-            <option>
+            <option value="baja">
               baja
             </option>
 
-            <option selected>
+            <option
+              value="media"
+              selected
+            >
               media
             </option>
 
-            <option>
+            <option value="alta">
               alta
             </option>
 
-            <option>
+            <option value="urgente">
               urgente
             </option>
 
           </select>
+
+          <p class="small">
+            Baja: 72 h · Media: 24 h · Alta: 6 h · Urgente: 2 h
+          </p>
 
         </div>
 
@@ -154,6 +187,9 @@
 
           <input
             id="facultad"
+            type="text"
+            maxlength="100"
+            placeholder="Ej. Facultad de Ciencias de la Vida y Tecnologías"
             required
           >
 
@@ -168,6 +204,9 @@
 
           <input
             id="bloque"
+            type="text"
+            maxlength="40"
+            placeholder="Ej. Bloque A"
             required
           >
 
@@ -182,6 +221,9 @@
 
           <input
             id="piso"
+            type="text"
+            maxlength="20"
+            placeholder="Ej. 2"
             required
           >
 
@@ -196,6 +238,9 @@
 
           <input
             id="aula"
+            type="text"
+            maxlength="60"
+            placeholder="Ej. Laboratorio 3"
             required
           >
 
@@ -211,6 +256,8 @@
       <textarea
         id="descripcion"
         minlength="15"
+        maxlength="1000"
+        placeholder="Describe qué ocurre, desde cuándo sucede y cómo afecta el uso del aula o equipo."
         required
       ></textarea>
 
@@ -222,8 +269,12 @@
       <input
         id="foto"
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/gif"
       >
+
+      <p class="small">
+        Formatos permitidos: JPG, PNG, WEBP o GIF. Tamaño máximo: 5 MB.
+      </p>
 
 
       <div
@@ -238,6 +289,13 @@
           Enviar reporte
         </button>
 
+        <a
+          class="btn secondary"
+          href="/mis-reportes.html"
+        >
+          Cancelar
+        </a>
+
       </div>
 
     </form>
@@ -247,9 +305,18 @@
 </div>
 
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
+></script>
+
 
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
@@ -258,52 +325,292 @@
 <script src="/js/db.js"></script>
 <script src="/js/notifications-ui.js"></script>
 
+
 <script>
+
+function mostrarMensaje(
+  texto,
+  tipo = "normal"
+) {
+
+  const msg =
+    document.getElementById(
+      "msg"
+    );
+
+
+  msg.innerHTML = `
+
+    <div class="${
+      tipo === "error"
+        ? "notice error"
+        : "notice"
+    }">
+
+      ${texto}
+
+    </div>
+
+  `;
+}
+
+
+function validarImagen(archivo) {
+
+  if (!archivo) {
+    return true;
+  }
+
+
+  const tiposPermitidos = [
+
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif"
+
+  ];
+
+
+  if (
+    !tiposPermitidos.includes(
+      archivo.type
+    )
+  ) {
+
+    throw new Error(
+      "La imagen debe estar en formato JPG, PNG, WEBP o GIF."
+    );
+  }
+
+
+  const maximoBytes =
+    5 * 1024 * 1024;
+
+
+  if (
+    archivo.size >
+    maximoBytes
+  ) {
+
+    throw new Error(
+      "La imagen supera el tamaño máximo permitido de 5 MB."
+    );
+  }
+
+
+  return true;
+}
+
+
+function validarCampos() {
+
+  const tituloValor =
+    titulo.value.trim();
+
+
+  const descripcionValor =
+    descripcion.value.trim();
+
+
+  const facultadValor =
+    facultad.value.trim();
+
+
+  const bloqueValor =
+    bloque.value.trim();
+
+
+  const pisoValor =
+    piso.value.trim();
+
+
+  const aulaValor =
+    aula.value.trim();
+
+
+  if (
+    tituloValor.length < 5
+  ) {
+
+    throw new Error(
+      "El título debe tener al menos 5 caracteres."
+    );
+  }
+
+
+  if (
+    descripcionValor.length < 15
+  ) {
+
+    throw new Error(
+      "La descripción debe tener al menos 15 caracteres."
+    );
+  }
+
+
+  if (
+    !categoria.value
+  ) {
+
+    throw new Error(
+      "Selecciona una categoría."
+    );
+  }
+
+
+  if (
+    !facultadValor ||
+    !bloqueValor ||
+    !pisoValor ||
+    !aulaValor
+  ) {
+
+    throw new Error(
+      "Completa todos los datos de ubicación."
+    );
+  }
+
+
+  return {
+
+    titulo:
+      tituloValor,
+
+    descripcion:
+      descripcionValor,
+
+    facultad:
+      facultadValor,
+
+    bloque:
+      bloqueValor,
+
+    piso:
+      pisoValor,
+
+    aula:
+      aulaValor
+
+  };
+}
+
 
 async function iniciarPagina() {
 
   await inicializarNotificacionesUI();
+
 
   const form =
     document.getElementById(
       "form"
     );
 
-  form.addEventListener(
-    "submit",
-    async e => {
 
-      e.preventDefault();
+  const btn =
+    document.getElementById(
+      "btn"
+    );
+
+
+  const foto =
+    document.getElementById(
+      "foto"
+    );
+
+
+  let enviando =
+    false;
+
+
+  form.addEventListener(
+
+    "submit",
+
+    async evento => {
+
+      evento.preventDefault();
+
+
+      if (enviando) {
+        return;
+      }
+
+
+      let datosValidos;
+
+
+      try {
+
+        datosValidos =
+          validarCampos();
+
+
+        validarImagen(
+          foto.files[0]
+        );
+
+
+      } catch (error) {
+
+        mostrarMensaje(
+          error.message,
+          "error"
+        );
+
+        return;
+      }
+
+
+      enviando =
+        true;
+
 
       btn.disabled =
         true;
 
-      msg.innerHTML = `
-        <div class="notice">
-          Guardando...
-        </div>
-      `;
+
+      btn.textContent =
+        "Enviando...";
+
+
+      mostrarMensaje(
+        "Preparando el reporte..."
+      );
+
 
       try {
 
-        let url =
+        let imagenURL =
           null;
+
 
         if (
           foto.files[0]
         ) {
 
-          url =
+          mostrarMensaje(
+            "Subiendo evidencia fotográfica..."
+          );
+
+
+          imagenURL =
             await subirImagenCloudinary(
               foto.files[0]
             );
         }
 
-        const id =
+
+        mostrarMensaje(
+          "Guardando el reporte y generando el ticket..."
+        );
+
+
+        const reporteId =
           await crearReporte({
 
             titulo:
-              titulo.value.trim(),
+              datosValidos.titulo,
 
             categoria:
               categoria.value,
@@ -312,25 +619,26 @@ async function iniciarPagina() {
               prioridad.value,
 
             descripcion:
-              descripcion.value.trim(),
+              datosValidos.descripcion,
 
             ubicacion: {
 
               facultad:
-                facultad.value.trim(),
+                datosValidos.facultad,
 
               bloque:
-                bloque.value.trim(),
+                datosValidos.bloque,
 
               piso:
-                piso.value.trim(),
+                datosValidos.piso,
 
               aula:
-                aula.value.trim()
+                datosValidos.aula
+
             },
 
             imagen_inicial_url:
-              url,
+              imagenURL,
 
             creado_por:
               usuarioActual.uid,
@@ -340,25 +648,68 @@ async function iniciarPagina() {
           });
 
 
-        location.href =
-          `/reporte-detalle.html?id=${id}`;
+        mostrarMensaje(
+          "Reporte creado correctamente. Abriendo el detalle..."
+        );
+
+
+        window.location.href =
+          `/reporte-detalle.html?id=${encodeURIComponent(
+            reporteId
+          )}`;
+
 
       } catch (error) {
 
-        console.error(error);
+        console.error(
+          "Error creando reporte:",
+          error
+        );
 
-        msg.innerHTML = `
-          <div class="notice error">
-            ${error.message}
-          </div>
-        `;
+
+        let mensaje =
+          "No se pudo crear el reporte.";
+
+
+        if (
+          error?.code ===
+          "permission-denied"
+        ) {
+
+          mensaje =
+            "No tienes permisos para realizar esta operación.";
+        }
+
+        else if (
+          error?.message
+        ) {
+
+          mensaje =
+            error.message;
+        }
+
+
+        mostrarMensaje(
+          mensaje,
+          "error"
+        );
+
+
+        enviando =
+          false;
+
 
         btn.disabled =
           false;
+
+
+        btn.textContent =
+          "Enviar reporte";
       }
     }
   );
 }
+
 
 protegerPagina([
   "usuario",
@@ -368,4 +719,5 @@ protegerPagina([
 </script>
 
 </body>
+
 </html>

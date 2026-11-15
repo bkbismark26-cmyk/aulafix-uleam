@@ -3,15 +3,27 @@
 
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
   <title>Mis reportes</title>
-  <link rel="stylesheet" href="/css/style.css">
+
+  <link
+    rel="stylesheet"
+    href="/css/style.css"
+  >
 </head>
 
 <body>
 
 <header>
-  <strong>AulaFix ULEAM</strong>
+
+  <strong>
+    AulaFix ULEAM
+  </strong>
 
   <nav>
 
@@ -25,12 +37,17 @@
 
     <span data-user-name></span>
 
-    <a href="#" onclick="cerrarSesion()">
+    <a
+      href="#"
+      onclick="cerrarSesion()"
+    >
       Salir
     </a>
 
   </nav>
+
 </header>
+
 
 <div class="container">
 
@@ -38,7 +55,10 @@
 
     <div
       class="actions"
-      style="justify-content:space-between"
+      style="
+        justify-content:space-between;
+        align-items:flex-start;
+      "
     >
 
       <div>
@@ -48,31 +68,45 @@
         </h1>
 
         <p class="small">
-          Seguimiento de incidencias que has registrado.
+          Seguimiento de las incidencias que has registrado.
         </p>
 
       </div>
+
 
       <a
         class="btn"
         href="/nuevo-reporte.html"
       >
-        + Nuevo
+        + Nuevo reporte
       </a>
 
     </div>
 
+
     <div id="lista">
-      Cargando...
+      Cargando reportes...
     </div>
 
   </div>
 
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+<!-- FIREBASE -->
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"
+></script>
+
+<script
+  src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
+></script>
+
 
 <script src="/js/firebase-config.js"></script>
 <script src="/js/cloudinary-config.js"></script>
@@ -81,93 +115,572 @@
 <script src="/js/db.js"></script>
 <script src="/js/notifications-ui.js"></script>
 
+
 <script>
 
-function esc(s) {
-  return String(s ?? "").replace(
+/* =========================================================
+   ESCAPAR TEXTO
+========================================================= */
+
+function esc(valor) {
+
+  return String(
+    valor ?? ""
+  ).replace(
+
     /[&<>"']/g,
-    m => ({
+
+    caracter => ({
+
       "&": "&amp;",
       "<": "&lt;",
       ">": "&gt;",
       '"': "&quot;",
       "'": "&#039;"
-    }[m])
+
+    }[caracter])
   );
 }
 
-async function iniciarPagina() {
 
-  await inicializarNotificacionesUI();
+/* =========================================================
+   CONVERTIR FECHA
+========================================================= */
 
-  const data =
-    await listarMisReportes(
-      usuarioActual.uid
-    );
+function convertirFecha(valor) {
 
-  if (!data.length) {
-
-    lista.innerHTML = `
-      <div class="notice">
-        Todavía no tienes reportes.
-      </div>
-    `;
-
-    return;
+  if (!valor) {
+    return null;
   }
 
-  lista.innerHTML =
-    data.map(
-      r => `
 
-        <div class="card">
+  if (
+    typeof valor.toDate === "function"
+  ) {
 
-          <div
-            class="actions"
-            style="justify-content:space-between"
+    return valor.toDate();
+  }
+
+
+  if (
+    valor.seconds !== undefined
+  ) {
+
+    return new Date(
+      valor.seconds * 1000
+    );
+  }
+
+
+  const resultado =
+    new Date(valor);
+
+
+  return Number.isNaN(
+    resultado.getTime()
+  )
+    ? null
+    : resultado;
+}
+
+
+/* =========================================================
+   FECHA DE RESOLUCIÓN
+========================================================= */
+
+function obtenerFechaResolucion(reporte) {
+
+  const historial =
+    Array.isArray(
+      reporte.historial
+    )
+      ? reporte.historial
+      : [];
+
+
+  const soluciones =
+    historial.filter(
+
+      item =>
+        item.estado ===
+        "solucionado"
+    );
+
+
+  if (
+    soluciones.length > 0
+  ) {
+
+    const ultimaSolucion =
+      soluciones[
+        soluciones.length - 1
+      ];
+
+
+    return convertirFecha(
+      ultimaSolucion.fecha
+    );
+  }
+
+
+  const cierres =
+    historial.filter(
+
+      item =>
+        item.estado ===
+        "cerrado"
+    );
+
+
+  if (
+    cierres.length > 0
+  ) {
+
+    const ultimoCierre =
+      cierres[
+        cierres.length - 1
+      ];
+
+
+    return convertirFecha(
+      ultimoCierre.fecha
+    );
+  }
+
+
+  return null;
+}
+
+
+/* =========================================================
+   ESTADO SLA
+========================================================= */
+
+function obtenerEstadoSLA(reporte) {
+
+  if (!reporte.vence_en) {
+
+    return {
+
+      texto:
+        "SIN SLA",
+
+      clase:
+        "badge"
+
+    };
+  }
+
+
+  if (
+    reporte.estado ===
+    "rechazado"
+  ) {
+
+    return {
+
+      texto:
+        "RECHAZADO",
+
+      clase:
+        "badge"
+
+    };
+  }
+
+
+  const vence =
+    convertirFecha(
+      reporte.vence_en
+    );
+
+
+  if (!vence) {
+
+    return {
+
+      texto:
+        "SIN SLA",
+
+      clase:
+        "badge"
+
+    };
+  }
+
+
+  /* =========================
+     FINALIZADOS
+  ========================= */
+
+  if (
+    reporte.estado === "solucionado" ||
+    reporte.estado === "cerrado"
+  ) {
+
+    const resolucion =
+      obtenerFechaResolucion(
+        reporte
+      );
+
+
+    if (!resolucion) {
+
+      return {
+
+        texto:
+          "FINALIZADO",
+
+        clase:
+          "badge"
+
+      };
+    }
+
+
+    if (
+      resolucion <= vence
+    ) {
+
+      return {
+
+        texto:
+          "CUMPLIDO",
+
+        clase:
+          "badge priority-baja"
+
+      };
+    }
+
+
+    return {
+
+      texto:
+        "FUERA DE SLA",
+
+      clase:
+        "badge priority-urgente"
+
+    };
+  }
+
+
+  /* =========================
+     ACTIVOS
+  ========================= */
+
+  const diferencia =
+    vence.getTime() -
+    Date.now();
+
+
+  if (
+    diferencia <= 0
+  ) {
+
+    return {
+
+      texto:
+        "VENCIDO",
+
+      clase:
+        "badge priority-urgente"
+
+    };
+  }
+
+
+  if (
+    diferencia <=
+    60 * 60 * 1000
+  ) {
+
+    return {
+
+      texto:
+        "PRÓXIMO A VENCER",
+
+      clase:
+        "badge priority-media"
+
+    };
+  }
+
+
+  return {
+
+    texto:
+      "A TIEMPO",
+
+    clase:
+      "badge priority-baja"
+
+  };
+}
+
+
+/* =========================================================
+   INICIAR PÁGINA
+========================================================= */
+
+async function iniciarPagina() {
+
+  const lista =
+    document.getElementById(
+      "lista"
+    );
+
+
+  try {
+
+    await inicializarNotificacionesUI();
+
+
+    const data =
+      await listarMisReportes(
+        usuarioActual.uid
+      );
+
+
+    /* =========================
+       SIN REPORTES
+    ========================= */
+
+    if (!data.length) {
+
+      lista.innerHTML = `
+
+        <div class="notice">
+
+          <strong>
+            Todavía no tienes reportes registrados.
+          </strong>
+
+          <p class="small">
+            Cuando encuentres una incidencia puedes crear tu primer reporte.
+          </p>
+
+          <a
+            class="btn"
+            href="/nuevo-reporte.html"
           >
-
-            <div>
-
-              <h3>
-                ${esc(r.titulo)}
-              </h3>
-
-              <span class="badge status">
-                ${esc(r.estado)}
-              </span>
-
-              <span
-                class="badge priority-${esc(r.prioridad)}"
-              >
-                ${esc(r.prioridad)}
-              </span>
-
-              <p class="small">
-
-                ${esc(r.categoria)}
-                ·
-                ${esc(r.ubicacion?.bloque)}
-                /
-                ${esc(r.ubicacion?.aula)}
-
-              </p>
-
-            </div>
-
-            <a
-              class="btn"
-              href="/reporte-detalle.html?id=${r.id}"
-            >
-              Ver detalle
-            </a>
-
-          </div>
+            Crear primer reporte
+          </a>
 
         </div>
-      `
-    ).join("");
+
+      `;
+
+      return;
+    }
+
+
+    /* =========================
+       LISTA
+    ========================= */
+
+    lista.innerHTML =
+      data
+        .map(
+          reporte => {
+
+            const sla =
+              obtenerEstadoSLA(
+                reporte
+              );
+
+
+            const vence =
+              convertirFecha(
+                reporte.vence_en
+              );
+
+
+            return `
+
+              <div class="card">
+
+                <div
+                  class="actions"
+                  style="
+                    justify-content:space-between;
+                    align-items:flex-start;
+                  "
+                >
+
+                  <div>
+
+                    <h3>
+                      ${esc(
+                        reporte.titulo
+                      )}
+                    </h3>
+
+
+                    <p class="small">
+
+                      <b>
+                        Ticket:
+                      </b>
+
+                      ${esc(
+                        reporte.ticket ||
+                        "Sin ticket"
+                      )}
+
+                    </p>
+
+
+                    <p>
+
+                      <span
+                        class="badge status"
+                      >
+                        ${esc(
+                          reporte.estado
+                        )}
+                      </span>
+
+
+                      <span
+                        class="
+                          badge
+                          priority-${esc(
+                            reporte.prioridad
+                          )}
+                        "
+                      >
+                        ${esc(
+                          reporte.prioridad
+                        )}
+                      </span>
+
+
+                      <span
+                        class="${sla.clase}"
+                      >
+                        ${esc(
+                          sla.texto
+                        )}
+                      </span>
+
+                    </p>
+
+
+                    <p class="small">
+
+                      ${esc(
+                        reporte.categoria
+                      )}
+
+                      ·
+
+                      ${esc(
+                        reporte.ubicacion?.bloque ||
+                        "-"
+                      )}
+
+                      /
+
+                      ${esc(
+                        reporte.ubicacion?.aula ||
+                        "-"
+                      )}
+
+                    </p>
+
+
+                    <p class="small">
+
+                      <b>
+                        Vence:
+                      </b>
+
+                      ${
+                        vence
+
+                          ? vence
+                              .toLocaleString()
+
+                          : "Sin fecha"
+                      }
+
+                    </p>
+
+
+                    <p class="small">
+
+                      <b>
+                        Técnico:
+                      </b>
+
+                      ${esc(
+                        reporte.tecnico_nombre ||
+                        "Sin asignar"
+                      )}
+
+                    </p>
+
+                  </div>
+
+
+                  <a
+                    class="btn"
+                    href="/reporte-detalle.html?id=${encodeURIComponent(
+                      reporte.id
+                    )}"
+                  >
+                    Ver detalle
+                  </a>
+
+                </div>
+
+              </div>
+
+            `;
+          }
+        )
+        .join("");
+
+
+  } catch (error) {
+
+    console.error(
+      "Error cargando mis reportes:",
+      error
+    );
+
+
+    lista.innerHTML = `
+
+      <div class="notice error">
+
+        <strong>
+          No se pudieron cargar tus reportes.
+        </strong>
+
+        <p class="small">
+          Actualiza la página e inténtalo nuevamente.
+        </p>
+
+        <button
+          type="button"
+          onclick="iniciarPagina()"
+        >
+          Reintentar
+        </button>
+
+      </div>
+
+    `;
+  }
 }
+
+
+/* =========================================================
+   SEGURIDAD
+========================================================= */
 
 protegerPagina([
   "usuario",
@@ -177,4 +690,5 @@ protegerPagina([
 </script>
 
 </body>
+
 </html>
